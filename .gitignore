@@ -1,0 +1,30 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+AppPackages/
+*.appx
+*.appxsym
+*.appxupload
+
+# User-specific files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio
+.vs/
+*.ncb
+*.opendb
+*.opensdf
+*.sdf
+
+# NuGet packages
+packages/
+*.nupkg
+
+# Misc
+*.log
+
+# PFX keys
+*.pfx

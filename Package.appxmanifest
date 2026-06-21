@@ -1,0 +1,58 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/2010/manifest" xmlns:m2="http://schemas.microsoft.com/appx/2013/manifest" xmlns:m3="http://schemas.microsoft.com/appx/2014/manifest" xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest">
+
+  <Identity Name="f3e8785e-accd-4f23-8e1a-01b88b2e21b0"
+            Publisher="CN=SiroccoL"
+            Version="1.0.0.0" />
+
+  <mp:PhoneIdentity PhoneProductId="f3e8785e-accd-4f23-8e1a-01b88b2e21b0" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
+
+  <Properties>
+    <DisplayName>晴雨表</DisplayName>
+    <PublisherDisplayName>SiroccoL</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Prerequisites>
+    <OSMinVersion>6.3.1</OSMinVersion>
+    <OSMaxVersionTested>6.3.1</OSMaxVersionTested>
+  </Prerequisites>
+  
+  <Resources>
+    <Resource Language="zh-cn"/>
+  </Resources>
+
+  <Applications>
+    <Application Id="App"
+        Executable="$targetnametoken$.exe"
+        EntryPoint="WeatherAppRT2._0.App">
+        <m3:VisualElements
+            DisplayName="晴雨表"
+            Square150x150Logo="Assets\Logo.png"
+            Square44x44Logo="Assets\SmallLogo.png"
+            Description="WP8.1 天气应用"
+            ForegroundText="light"
+            BackgroundColor="#0C0C14">
+            <m3:LockScreen Notification="badgeAndTileText" BadgeLogo="Assets\BadgeLogo.png" />
+            <m3:DefaultTile Wide310x150Logo="Assets\WideLogo.png"
+                            Square71x71Logo="Assets\Square71x71Logo.png"
+                            ShortName="晴雨表"/>
+            <m3:SplashScreen Image="Assets\SplashScreen.png"/>
+        </m3:VisualElements>
+
+        <Extensions>
+          <Extension Category="windows.backgroundTasks"
+                     EntryPoint="WeatherAppRT2._0.BackgroundTasks.WeatherRefreshTask">
+            <BackgroundTasks>
+              <Task Type="timer"/>
+            </BackgroundTasks>
+          </Extension>
+        </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <DeviceCapability Name="location" />
+  </Capabilities>
+</Package>

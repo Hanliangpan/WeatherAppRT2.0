@@ -1,0 +1,17 @@
+﻿<Application
+    x:Class="WeatherAppRT2._0.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:WeatherAppRT2._0"
+    xmlns:conv="using:WeatherAppRT2._0.Converters"
+    RequestedTheme="Dark">
+
+    <Application.Resources>
+        <conv:TemperatureConverter x:Key="TempConv"/>
+        <conv:WeatherIconConverter x:Key="IconConv"/>
+        <conv:BoolToVisibilityConverter x:Key="Bool2Vis"/>
+        <conv:InverseBoolToVisibilityConverter x:Key="InvBool2Vis"/>
+        <conv:RainInfoConverter x:Key="RainConv"/>
+        <conv:RelativeTimeConverter x:Key="RelTimeConv"/>
+    </Application.Resources>
+</Application>

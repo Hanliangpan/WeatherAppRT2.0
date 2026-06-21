@@ -1,0 +1,275 @@
+﻿<Page
+    x:Class="WeatherAppRT2._0.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:WeatherAppRT2._0"
+    xmlns:vm="using:WeatherAppRT2._0.ViewModels"
+    xmlns:conv="using:WeatherAppRT2._0.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    RequestedTheme="Dark"
+    Background="#FF0C0C14"
+    NavigationCacheMode="Required">
+
+    <Page.Resources>
+        <conv:TemperatureConverter x:Key="TempConv"/>
+        <conv:WeatherIconConverter x:Key="IconConv"/>
+        <conv:BoolToVisibilityConverter x:Key="Bool2Vis"/>
+        <conv:InverseBoolToVisibilityConverter x:Key="InvBool2Vis"/>
+        <conv:RainInfoConverter x:Key="RainConv"/>
+        <conv:RelativeTimeConverter x:Key="RelTimeConv"/>
+    </Page.Resources>
+
+    <Grid Background="#FF0C0C14">
+        <!-- Loading overlay -->
+        <Grid Visibility="{Binding IsLoading, Converter={StaticResource Bool2Vis}}"
+              Background="#80000000" Canvas.ZIndex="100">
+            <ProgressRing IsActive="{Binding IsLoading}" Width="60" Height="60"
+                          Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        </Grid>
+
+        <!-- Error banner -->
+        <Border Background="#CCFF4444" Padding="12,8" VerticalAlignment="Top"
+                Visibility="{Binding HasError, Converter={StaticResource Bool2Vis}}"
+                Canvas.ZIndex="99">
+            <TextBlock Text="{Binding ErrorMessage}" Foreground="White" FontSize="14"
+                       TextWrapping="Wrap" HorizontalAlignment="Center"/>
+        </Border>
+
+        <Pivot x:Name="MainPivot" Margin="0,0,0,0">
+            <!-- ==================== 当前天气 ==================== -->
+            <PivotItem Header="当前">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,0,0">
+                    <StackPanel Margin="20,10,20,20">
+
+                        <!-- 城市名 + 搜索按钮 -->
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Background="Transparent" HorizontalAlignment="Left"
+                                    Click="OnCitySelectClick" Padding="0">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding CityName}" FontSize="24"
+                                               FontWeight="SemiLight" Foreground="White"/>
+                                    <TextBlock Text=" ▼" FontSize="16" Foreground="#66FFFFFF"
+                                               VerticalAlignment="Center" Margin="4,2,0,0"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
+                        <!-- 天气核心区域 -->
+                        <StackPanel HorizontalAlignment="Center" Margin="0,10,0,10">
+                            <!-- 天气图标 -->
+                            <TextBlock Text="{Binding WeatherIcon, Converter={StaticResource IconConv}}"
+                                       FontSize="72" HorizontalAlignment="Center" Margin="0,0,0,-8"/>
+                            <!-- 温度 -->
+                            <TextBlock FontSize="80" FontWeight="ExtraLight" Foreground="White"
+                                       HorizontalAlignment="Center" Margin="0,-10,0,-5"
+                                       Text="{Binding CurrentTemp, Converter={StaticResource TempConv}}"/>
+                            <!-- 天气描述 -->
+                            <TextBlock Text="{Binding WeatherDesc}" FontSize="20"
+                                       Foreground="#AAFFFFFF" HorizontalAlignment="Center"/>
+                            <!-- 最高最低 -->
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,6,0,0">
+                                <TextBlock Foreground="#CCFF6B35" FontSize="16" Margin="0,0,16,0">
+                                    <Run Text="↑ "/><Run Text="{Binding TempHigh, Converter={StaticResource TempConv}}"/>
+                                </TextBlock>
+                                <TextBlock Foreground="#CC4FC3F7" FontSize="16">
+                                    <Run Text="↓ "/><Run Text="{Binding TempLow, Converter={StaticResource TempConv}}"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- 6 格详情卡片 -->
+                        <ItemsControl ItemsSource="{Binding DetailCards}" Margin="0,10,0,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapGrid MaximumRowsOrColumns="2" Orientation="Horizontal"
+                                              HorizontalAlignment="Stretch"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#1AFFFFFF" CornerRadius="12" Margin="4,4" Padding="14,12"
+                                            Width="170">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Icon}" FontSize="20" Margin="0,0,6,0"/>
+                                                <TextBlock Text="{Binding Title}" FontSize="13"
+                                                           Foreground="#88FFFFFF"/>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Value}" FontSize="20"
+                                                       FontWeight="SemiLight" Foreground="White" Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- 更新时间 -->
+                        <TextBlock Margin="0,16,0,0" FontSize="12" Foreground="#66FFFFFF"
+                                   HorizontalAlignment="Center"
+                                   Text="{Binding FetchedAt, Converter={StaticResource RelTimeConv}}"/>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </PivotItem>
+
+            <!-- ==================== 逐时预报 ==================== -->
+            <PivotItem Header="逐时">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="20,10,20,20">
+
+                        <!-- 降雨概率提示条 -->
+                        <Border Background="#264FC3F7" CornerRadius="8" Padding="14,10" Margin="0,0,0,12"
+                                Visibility="{Binding RainInfo.MaxPop, Converter={StaticResource Bool2Vis}}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🌧" FontSize="18" Margin="0,0,8,0"/>
+                                <TextBlock Text="{Binding RainInfo, Converter={StaticResource RainConv}}"
+                                           FontSize="14" Foreground="#CC4FC3F7"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 横向滚动逐时卡片 -->
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      HorizontalScrollMode="Enabled"
+                                      VerticalScrollMode="Disabled"
+                                      Height="160">
+                            <ItemsControl ItemsSource="{Binding HourlyItems}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Width="68" Margin="2,0" Padding="4,10">
+                                            <StackPanel HorizontalAlignment="Center">
+                                                <TextBlock Text="{Binding Time, Converter={StaticResource IconConv}}"
+                                                           FontSize="11" Foreground="#88FFFFFF"
+                                                           HorizontalAlignment="Center"/>
+                                                <TextBlock Text="{Binding WeatherIcon, Converter={StaticResource IconConv}}"
+                                                           FontSize="24" HorizontalAlignment="Center" Margin="0,4,0,4"/>
+                                                <TextBlock Text="{Binding Temperature, Converter={StaticResource TempConv}}"
+                                                           FontSize="16" Foreground="White"
+                                                           HorizontalAlignment="Center"/>
+                                                <TextBlock Foreground="#CC4FC3F7" FontSize="11"
+                                                           HorizontalAlignment="Center" Margin="0,4,0,0">
+                                                    <Run Text="{Binding PrecipitationProbability}"/><Run Text="%"/>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <!-- 温度趋势折线图 -->
+                        <TextBlock Text="温度趋势" FontSize="16" Foreground="#AAFFFFFF" Margin="0,16,0,8"/>
+                        <Border Background="#1AFFFFFF" CornerRadius="8" Padding="8" Height="160">
+                            <Canvas x:Name="TempChartCanvas" SizeChanged="OnTempChartSizeChanged"/>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </PivotItem>
+
+            <!-- ==================== 逐日预报 ==================== -->
+            <PivotItem Header="逐日">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="20,10,20,20">
+
+                        <!-- 本周摘要 -->
+                        <Border Background="#1AFFFFFF" CornerRadius="10" Padding="14,12" Margin="0,0,0,12">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="📋" FontSize="18" Margin="0,0,8,0"/>
+                                <TextBlock x:Name="WeekSummaryText" FontSize="14" Foreground="#AAFFFFFF"
+                                           TextWrapping="Wrap" Text="本周天气概览"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 逐日列表 -->
+                        <ItemsControl ItemsSource="{Binding DailyItems}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Background="Transparent" HorizontalAlignment="Stretch"
+                                            HorizontalContentAlignment="Stretch" Padding="0" Margin="0,2"
+                                            Click="OnDayClick">
+                                        <Border Background="#1AFFFFFF" CornerRadius="10" Padding="14,10">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="50"/>
+                                                    <ColumnDefinition Width="36"/>
+                                                    <ColumnDefinition Width="40"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="40"/>
+                                                    <ColumnDefinition Width="40"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <!-- 星期 -->
+                                                <TextBlock Grid.Column="0" Text="{Binding DayOfWeek}"
+                                                           FontSize="14" Foreground="White" VerticalAlignment="Center"/>
+                                                <!-- 天气图标 -->
+                                                <TextBlock Grid.Column="1"
+                                                           Text="{Binding IconDay, Converter={StaticResource IconConv}}"
+                                                           FontSize="20" HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                                <!-- 低温 -->
+                                                <TextBlock Grid.Column="2" FontSize="14" Foreground="#CC4FC3F7"
+                                                           VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                           Text="{Binding TempMin, Converter={StaticResource TempConv}}"/>
+                                                <!-- 温度条 -->
+                                                <Grid Grid.Column="3" Margin="8,0">
+                                                    <Border Background="#33FFFFFF" CornerRadius="3" Height="6"
+                                                            VerticalAlignment="Center"/>
+                                                    <Border x:Name="TempBar" Background="#FFFF9500" CornerRadius="3"
+                                                            Height="6" VerticalAlignment="Center"
+                                                            HorizontalAlignment="Left"/>
+                                                </Grid>
+                                                <!-- 高温 -->
+                                                <TextBlock Grid.Column="4" FontSize="14" Foreground="#CCFF6B35"
+                                                           VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                           Text="{Binding TempMax, Converter={StaticResource TempConv}}"/>
+                                                <!-- 降雨概率 -->
+                                                <TextBlock Grid.Column="5" FontSize="12" Foreground="#CC4FC3F7"
+                                                           VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                           Text="{Binding PrecipitationProbability}"/>
+                                            </Grid>
+                                        </Border>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </PivotItem>
+        </Pivot>
+
+        <!-- 逐日详情 Popup -->
+        <Popup x:Name="DayDetailPopup" IsLightDismissEnabled="True"
+               HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Border x:Name="DayDetailBorder" Background="#FF1E1E2E" CornerRadius="16"
+                    Padding="24,20" MinWidth="280" Margin="20">
+                <StackPanel>
+                    <TextBlock x:Name="PopupDayTitle" FontSize="20" FontWeight="SemiBold"
+                               Foreground="White" Margin="0,0,0,12"/>
+                    <StackPanel x:Name="PopupDetailPanel"/>
+                </StackPanel>
+            </Border>
+        </Popup>
+
+    </Grid>
+
+    <Page.BottomAppBar>
+        <CommandBar Background="#FF1A1A2E" Foreground="White">
+            <AppBarButton Icon="Refresh" Label="刷新" Click="OnRefreshClick" Foreground="White"/>
+            <AppBarButton Icon="Find" Label="搜索" Click="OnSearchClick" Foreground="White"/>
+            <AppBarButton Icon="Pin" Label="固定磁贴" Click="OnPinTileClick" Foreground="White"/>
+        </CommandBar>
+    </Page.BottomAppBar>
+</Page>

@@ -1,0 +1,119 @@
+<Page
+    x:Class="WeatherAppRT2._0.CitySearchPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:WeatherAppRT2._0"
+    xmlns:conv="using:WeatherAppRT2._0.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    RequestedTheme="Dark"
+    Background="#FF0C0C14">
+
+    <Page.Resources>
+        <conv:BoolToVisibilityConverter x:Key="Bool2Vis"/>
+        <conv:InverseBoolToVisibilityConverter x:Key="InvBool2Vis"/>
+    </Page.Resources>
+
+    <Grid Background="#FF0C0C14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 顶部标题栏 -->
+        <StackPanel Grid.Row="0" Margin="20,16,20,0">
+            <TextBlock Text="搜索城市" FontSize="28" FontWeight="Light" Foreground="White"/>
+        </StackPanel>
+
+        <!-- 搜索框 -->
+        <Grid Grid.Row="1" Margin="20,12,20,0">
+            <TextBox x:Name="SearchBox"
+                     PlaceholderText="输入城市名（中文/英文）"
+                     TextChanged="OnSearchTextChanged"
+                     Background="#1AFFFFFF" Foreground="White"
+                     BorderBrush="#33FFFFFF" BorderThickness="1"
+                     FontSize="16" Padding="12,10"
+                     InputScope="Search"/>
+        </Grid>
+
+        <!-- 搜索结果 / 已收藏列表 -->
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+            <StackPanel Margin="20,0,20,20">
+
+                <!-- 搜索结果 -->
+                <TextBlock Text="搜索结果" FontSize="16" Foreground="#88FFFFFF" Margin="0,8,0,8"
+                           x:Name="SearchResultHeader" Visibility="Collapsed"/>
+                <ItemsControl x:Name="SearchResultsList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Background="Transparent" HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch" Padding="0" Margin="0,2"
+                                    Click="OnSearchResultClick">
+                                <Border Background="#1AFFFFFF" CornerRadius="10" Padding="14,12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="{Binding Name}" FontSize="16" Foreground="White"/>
+                                            <TextBlock FontSize="12" Foreground="#66FFFFFF" Margin="0,2,0,0">
+                                                <Run Text="{Binding Adm1}"/><Run Text=" · "/><Run Text="{Binding Country}"/>
+                                            </TextBlock>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Text="✓" FontSize="18" Foreground="#FF4FC3F7"
+                                                   VerticalAlignment="Center" Margin="8,0,0,0"
+                                                   Visibility="{Binding IsSaved, Converter={StaticResource Bool2Vis}}"/>
+                                    </Grid>
+                                </Border>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- 已收藏城市 -->
+                <TextBlock Text="已收藏城市" FontSize="16" Foreground="#88FFFFFF" Margin="0,16,0,8"/>
+                <ItemsControl x:Name="SavedCitiesList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="#1AFFFFFF" CornerRadius="10" Padding="14,12" Margin="0,2">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- 定位图标 -->
+                                    <TextBlock Grid.Column="0" Text="📍" FontSize="16" Margin="0,0,8,0"
+                                               VerticalAlignment="Center"
+                                               Visibility="{Binding IsCurrentLocation, Converter={StaticResource Bool2Vis}}"/>
+
+                                    <!-- 城市信息（可点击切换） -->
+                                    <Button Grid.Column="1" Background="Transparent" Padding="0"
+                                            HorizontalAlignment="Left" Click="OnSavedCityClick">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" FontSize="16" Foreground="White"/>
+                                            <TextBlock Text="{Binding Adm1}" FontSize="12"
+                                                       Foreground="#66FFFFFF" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                    </Button>
+
+                                    <!-- 删除按钮 -->
+                                    <Button Grid.Column="2" Background="Transparent" Padding="8,4"
+                                            Click="OnDeleteCityClick" Foreground="#CCFF6B6B"
+                                            VerticalAlignment="Center" FontSize="18"
+                                            Content="✕"
+                                            Visibility="{Binding IsCurrentLocation, Converter={StaticResource InvBool2Vis}}"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>
