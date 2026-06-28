@@ -8,7 +8,7 @@
   <mp:PhoneIdentity PhoneProductId="f3e8785e-accd-4f23-8e1a-01b88b2e21b0" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
-    <DisplayName>晴雨表</DisplayName>
+    <DisplayName>MoooWeatherRT2.0</DisplayName>
     <PublisherDisplayName>SiroccoL</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -27,16 +27,17 @@
         Executable="$targetnametoken$.exe"
         EntryPoint="WeatherAppRT2._0.App">
         <m3:VisualElements
-            DisplayName="晴雨表"
+            DisplayName="MoooWeatherRT2.0"
             Square150x150Logo="Assets\Logo.png"
             Square44x44Logo="Assets\SmallLogo.png"
-            Description="WP8.1 天气应用"
+            Description="WP8.1 天气应用 MoooWeatherRT2.0"
             ForegroundText="light"
-            BackgroundColor="#0C0C14">
+            BackgroundColor="#1A3A5C"
+            ToastCapable="true">
             <m3:LockScreen Notification="badgeAndTileText" BadgeLogo="Assets\BadgeLogo.png" />
             <m3:DefaultTile Wide310x150Logo="Assets\WideLogo.png"
                             Square71x71Logo="Assets\Square71x71Logo.png"
-                            ShortName="晴雨表"/>
+                            ShortName="MoooWeather"/>
             <m3:SplashScreen Image="Assets\SplashScreen.png"/>
         </m3:VisualElements>
 
@@ -52,7 +53,7 @@
   </Applications>
 
   <Capabilities>
-    <Capability Name="internetClient" />
+    <Capability Name="internetClientServer" />
     <DeviceCapability Name="location" />
   </Capabilities>
 </Package>

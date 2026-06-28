@@ -28,15 +28,21 @@ namespace WeatherAppRT2._0
 
             _debounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
             _debounceTimer.Tick += OnDebounceTick;
-
-            HardwareButtons.BackPressed += OnBackPressed;
         }
 
         protected override async void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+            HardwareButtons.BackPressed += OnBackPressed;
             _settings = await CacheManager.LoadSettingsAsync();
+            System.Diagnostics.Debug.WriteLine("[SearchPage] OnNavigatedTo, 已加载设置, 搜索历史={0}", _settings?.SearchHistory?.Count ?? 0);
             RefreshSavedCitiesList();
+        }
+
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
+        {
+            base.OnNavigatedFrom(e);
+            HardwareButtons.BackPressed -= OnBackPressed;
         }
 
         private void OnBackPressed(object sender, BackPressedEventArgs e)
@@ -78,12 +84,12 @@ namespace WeatherAppRT2._0
                 var results = await _apiClient.SearchCityAsync(keyword);
                 if (token.IsCancellationRequested) return;
 
-                // 标记已收藏
-                var savedIds = new HashSet<string>(
-                    (_settings?.SavedCities ?? new List<CityInfo>()).Select(c => c.Id));
+                // 标记是否在搜索历史中
+                var historyIds = new HashSet<string>(
+                    (_settings?.SearchHistory ?? new List<CityInfo>()).Select(c => c.Id));
 
                 foreach (var r in results)
-                    r.IsSaved = savedIds.Contains(r.Id);
+                    r.IsSaved = historyIds.Contains(r.Id);
 
                 SearchResultsList.ItemsSource = results;
                 SearchResultHeader.Visibility = results.Count > 0
@@ -98,7 +104,7 @@ namespace WeatherAppRT2._0
 
         #endregion
 
-        #region 搜索结果点击
+        #region 搜索结果点击 — 自动加入搜索历史
 
         private async void OnSearchResultClick(object sender, RoutedEventArgs e)
         {
@@ -107,16 +113,23 @@ namespace WeatherAppRT2._0
             var city = btn.DataContext as CitySearchResult;
             if (city == null) return;
 
-            // 防重复
-            if (city.IsSaved)
+            System.Diagnostics.Debug.WriteLine("[Search] 点击城市: {0}, Id={1}", city.Name, city.Id);
+
+            // 初始化搜索历史
+            if (_settings.SearchHistory == null)
+                _settings.SearchHistory = new List<CityInfo>();
+
+            // 去重：如果已存在，移到最前面
+            _settings.SearchHistory.RemoveAll(c => c.Id == city.Id);
+
+            // 限制最多10条
+            while (_settings.SearchHistory.Count >= 10)
             {
-                var dlg = new MessageDialog(string.Format("{0} 已在收藏列表中", city.Name));
-                await dlg.ShowAsync();
-                return;
+                _settings.SearchHistory.RemoveAt(_settings.SearchHistory.Count - 1);
             }
 
-            // 添加到收藏
-            var cityInfo = new CityInfo
+            // 插入到最前面
+            _settings.SearchHistory.Insert(0, new CityInfo
             {
                 Id = city.Id,
                 Name = city.Name,
@@ -125,19 +138,15 @@ namespace WeatherAppRT2._0
                 Latitude = city.Latitude,
                 Longitude = city.Longitude,
                 IsCurrentLocation = false
-            };
+            });
 
-            if (_settings.SavedCities == null)
-                _settings.SavedCities = new List<CityInfo>();
-
-            // 去重检查
-            if (!_settings.SavedCities.Any(c => c.Id == city.Id))
-                _settings.SavedCities.Add(cityInfo);
+            System.Diagnostics.Debug.WriteLine("[Search] 搜索历史更新, 共{0}条", _settings.SearchHistory.Count);
 
             // 设为默认城市
             _settings.DefaultCityId = city.Id;
             _settings.DefaultCityName = city.Name;
             await CacheManager.SaveSettingsAsync(_settings);
+            System.Diagnostics.Debug.WriteLine("[Search] 设置已保存, DefaultCity={0}", _settings.DefaultCityName);
 
             // 通过静态属性传递参数，然后 GoBack 返回
             MainPage.PendingCityParam = new CityNavigateParam
@@ -153,11 +162,28 @@ namespace WeatherAppRT2._0
 
         #endregion
 
-        #region 已收藏城市
+        #region 搜索历史
 
-        private void RefreshSavedCitiesList()
+        private async void RefreshSavedCitiesList()
         {
-            SavedCitiesList.ItemsSource = _settings?.SavedCities ?? new List<CityInfo>();
+            var source = _settings?.SearchHistory;
+            var count = source?.Count ?? 0;
+
+            // 先清空
+            SavedCitiesList.ItemsSource = null;
+
+            if (count > 0)
+            {
+                // 延迟一帧再绑定新列表（新建 List 避免 ItemsControl 认为是同一引用而跳过刷新）
+                await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                {
+                    SavedCitiesList.ItemsSource = new List<CityInfo>(source);
+                });
+            }
+
+            HistoryHeader.Visibility = count > 0
+                ? Visibility.Visible : Visibility.Collapsed;
+            System.Diagnostics.Debug.WriteLine("[Search] RefreshSavedCitiesList: history count={0}", count);
         }
 
         private async void OnSavedCityClick(object sender, RoutedEventArgs e)
@@ -166,6 +192,13 @@ namespace WeatherAppRT2._0
             if (btn == null) return;
             var city = btn.DataContext as CityInfo;
             if (city == null) return;
+
+            // 点击后提到最前面
+            if (_settings.SearchHistory != null)
+            {
+                _settings.SearchHistory.RemoveAll(c => c.Id == city.Id);
+                _settings.SearchHistory.Insert(0, city);
+            }
 
             // 设为默认城市并返回
             _settings.DefaultCityId = city.Id;
@@ -187,24 +220,17 @@ namespace WeatherAppRT2._0
         private async void OnDeleteCityClick(object sender, RoutedEventArgs e)
         {
             var btn = sender as Button;
+            System.Diagnostics.Debug.WriteLine("[Search] OnDeleteCityClick: btn={0}", btn != null);
             if (btn == null) return;
             var city = btn.DataContext as CityInfo;
+            System.Diagnostics.Debug.WriteLine("[Search] OnDeleteCityClick: city={0}, Id={1}", city?.Name, city?.Id);
             if (city == null) return;
 
-            // 确认删除
-            var dialog = new MessageDialog(
-                string.Format("确定删除 {0}？", city.Name), "删除城市");
-            dialog.Commands.Add(new UICommand("删除") { Id = 0 });
-            dialog.Commands.Add(new UICommand("取消") { Id = 1 });
-            dialog.DefaultCommandIndex = 1;
-
-            var result = await dialog.ShowAsync();
-            if ((int)result.Id == 0)
-            {
-                _settings.SavedCities.RemoveAll(c => c.Id == city.Id);
-                await CacheManager.SaveSettingsAsync(_settings);
-                RefreshSavedCitiesList();
-            }
+            // 直接从搜索历史中删除（无需确认弹窗）
+            var removed = _settings.SearchHistory?.RemoveAll(c => c.Id == city.Id) ?? 0;
+            System.Diagnostics.Debug.WriteLine("[Search] 删除了{0}条, 剩余{1}条", removed, _settings.SearchHistory?.Count ?? 0);
+            await CacheManager.SaveSettingsAsync(_settings);
+            RefreshSavedCitiesList();
         }
 
         #endregion

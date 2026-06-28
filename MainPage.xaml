@@ -8,8 +8,8 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
-    RequestedTheme="Dark"
-    Background="#FF0C0C14"
+    RequestedTheme="Light"
+    Background="#FFE8F0FE"
     NavigationCacheMode="Required">
 
     <Page.Resources>
@@ -19,100 +19,207 @@
         <conv:InverseBoolToVisibilityConverter x:Key="InvBool2Vis"/>
         <conv:RainInfoConverter x:Key="RainConv"/>
         <conv:RelativeTimeConverter x:Key="RelTimeConv"/>
+        <conv:HourTimeConverter x:Key="HourConv"/>
+        <conv:RatioConverter x:Key="RatioConv"/>
+
+        <!-- WP8.1 Segoe UI Symbol 字体 -->
+        <FontFamily x:Key="SymbolFont">Segoe UI Symbol</FontFamily>
+
+        <!-- ===== 阳光天气主题颜色 ===== -->
+        <SolidColorBrush x:Key="PrimaryColor" Color="#FF4A90D9"/>      <!-- 天空蓝 -->
+        <SolidColorBrush x:Key="PrimaryLight" Color="#FF7AB8F5"/>     <!-- 浅天蓝 -->
+        <SolidColorBrush x:Key="PrimaryDark" Color="#FF2C6FBF"/>      <!-- 深天蓝 -->
+        <SolidColorBrush x:Key="AccentOrange" Color="#FFFF8C00"/>     <!-- 暖橙 -->
+        <SolidColorBrush x:Key="AccentAmber" Color="#FFFFB300"/>      <!-- 阳光金 -->
+        <SolidColorBrush x:Key="AccentCyan" Color="#FF00BCD4"/>       <!-- 青色 -->
+        <SolidColorBrush x:Key="AccentTeal" Color="#FF26A69A"/>       <!-- 青绿 -->
+        <SolidColorBrush x:Key="SunGlowColor" Color="#FFFFD54F"/>     <!-- 阳光辉 -->
+
+        <SolidColorBrush x:Key="SurfaceDark" Color="#FFD6E4F0"/>      <!-- 浅蓝底 -->
+        <SolidColorBrush x:Key="SurfaceCard" Color="#CCFFFFFF"/>      <!-- 半透白卡片 -->
+        <SolidColorBrush x:Key="SurfaceCardHover" Color="#E6FFFFFF"/> <!-- 卡片悬停 -->
+        <SolidColorBrush x:Key="TextPrimary" Color="#FF1A237E"/>      <!-- 深蓝文字 -->
+        <SolidColorBrush x:Key="TextSecondary" Color="#FF37474F"/>    <!-- 深灰文字 -->
+        <SolidColorBrush x:Key="TextHint" Color="#FF90A4AE"/>         <!-- 浅灰提示 -->
+        <SolidColorBrush x:Key="DividerColor" Color="#1A37474F"/>     <!-- 分割线 -->
+
+        <!-- ===== 卡片阴影模拟 ===== -->
+        <Style x:Key="MaterialCard" TargetType="Border">
+            <Setter Property="Background" Value="#CCFFFFFF"/>
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
     </Page.Resources>
 
-    <Grid Background="#FF0C0C14">
-        <!-- Loading overlay -->
-        <Grid Visibility="{Binding IsLoading, Converter={StaticResource Bool2Vis}}"
-              Background="#80000000" Canvas.ZIndex="100">
-            <ProgressRing IsActive="{Binding IsLoading}" Width="60" Height="60"
-                          Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    <Grid Background="#FFE8F0FE">
+        <!-- 天空渐变背景 -->
+        <Grid VerticalAlignment="Top" Height="420">
+            <Grid.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#FF81D4FA" Offset="0.0"/>
+                    <GradientStop Color="#FFB3E5FC" Offset="0.25"/>
+                    <GradientStop Color="#FFE1F5FE" Offset="0.55"/>
+                    <GradientStop Color="#FFF5F8FC" Offset="0.8"/>
+                    <GradientStop Color="#FFE8F0FE" Offset="1.0"/>
+                </LinearGradientBrush>
+            </Grid.Background>
         </Grid>
 
-        <!-- Error banner -->
-        <Border Background="#CCFF4444" Padding="12,8" VerticalAlignment="Top"
+        <!-- 加载遮罩 -->
+        <Grid Visibility="{Binding IsLoading, Converter={StaticResource Bool2Vis}}"
+              Background="#99E8F0FE" Canvas.ZIndex="100">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <ProgressRing IsActive="{Binding IsLoading}" Width="48" Height="48"
+                              Foreground="#FF4A90D9"/>
+                <TextBlock Text="加载中..." FontSize="13" Foreground="#FF4A90D9"
+                           HorizontalAlignment="Center" Margin="0,12,0,0"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- 错误横幅 -->
+        <Border Background="#CCEF5350" Padding="16,12" VerticalAlignment="Top"
                 Visibility="{Binding HasError, Converter={StaticResource Bool2Vis}}"
-                Canvas.ZIndex="99">
-            <TextBlock Text="{Binding ErrorMessage}" Foreground="White" FontSize="14"
-                       TextWrapping="Wrap" HorizontalAlignment="Center"/>
+                Canvas.ZIndex="99" CornerRadius="0,0,8,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding ErrorMessage}" Foreground="White" FontSize="13"
+                           TextWrapping="Wrap" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="&#x2715;" FontSize="16" Foreground="#CCFFFFFF"
+                           FontFamily="{StaticResource SymbolFont}"
+                           VerticalAlignment="Center" Margin="16,0,0,0"
+                           Tapped="OnDismissError"/>
+            </Grid>
         </Border>
 
-        <Pivot x:Name="MainPivot" Margin="0,0,0,0">
+        <!-- 主 Pivot -->
+        <Pivot x:Name="MainPivot" Margin="0,0,0,0"
+               Foreground="#FF90A4AE" Background="Transparent">
+            <Pivot.HeaderTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding}" FontSize="30" FontWeight="SemiBold"
+                               Margin="0,8,0,8" Foreground="#FF37474F"/>
+                </DataTemplate>
+            </Pivot.HeaderTemplate>
+
             <!-- ==================== 当前天气 ==================== -->
             <PivotItem Header="当前">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,0,0">
-                    <StackPanel Margin="20,10,20,20">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16,4,16,12">
 
-                        <!-- 城市名 + 搜索按钮 -->
-                        <Grid Margin="0,8,0,0">
+                        <!-- 城市名 + 更新时间 -->
+                        <Grid Margin="0,0,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <Button Grid.Column="0" Background="Transparent" HorizontalAlignment="Left"
-                                    Click="OnCitySelectClick" Padding="0">
+                                    Click="OnCitySelectClick" Padding="0,2" BorderThickness="0">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <ContentPresenter/>
+                                    </ControlTemplate>
+                                </Button.Template>
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding CityName}" FontSize="24"
-                                               FontWeight="SemiLight" Foreground="White"/>
-                                    <TextBlock Text=" ▼" FontSize="16" Foreground="#66FFFFFF"
-                                               VerticalAlignment="Center" Margin="4,2,0,0"/>
+                                    <TextBlock Text="&#x1F4CD;" FontSize="16"
+                                               VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                    <TextBlock Text="{Binding CityName}" FontSize="22"
+                                               FontWeight="SemiBold" Foreground="#FF1A237E"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Text="  &#x25BC;" FontSize="10" Foreground="#FF90A4AE"
+                                               FontFamily="{StaticResource SymbolFont}"
+                                               VerticalAlignment="Center" Margin="2,0,0,0"/>
                                 </StackPanel>
                             </Button>
+                            <Border Grid.Column="1" Background="#26FFFFFF" CornerRadius="12"
+                                    Padding="10,4" VerticalAlignment="Center">
+                                <TextBlock FontSize="11" Foreground="#FF607D8B"
+                                           Text="{Binding FetchedAt, Converter={StaticResource RelTimeConv}}"/>
+                            </Border>
                         </Grid>
 
-                        <!-- 天气核心区域 -->
-                        <StackPanel HorizontalAlignment="Center" Margin="0,10,0,10">
-                            <!-- 天气图标 -->
-                            <TextBlock Text="{Binding WeatherIcon, Converter={StaticResource IconConv}}"
-                                       FontSize="72" HorizontalAlignment="Center" Margin="0,0,0,-8"/>
-                            <!-- 温度 -->
-                            <TextBlock FontSize="80" FontWeight="ExtraLight" Foreground="White"
-                                       HorizontalAlignment="Center" Margin="0,-10,0,-5"
-                                       Text="{Binding CurrentTemp, Converter={StaticResource TempConv}}"/>
-                            <!-- 天气描述 -->
-                            <TextBlock Text="{Binding WeatherDesc}" FontSize="20"
-                                       Foreground="#AAFFFFFF" HorizontalAlignment="Center"/>
-                            <!-- 最高最低 -->
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,6,0,0">
-                                <TextBlock Foreground="#CCFF6B35" FontSize="16" Margin="0,0,16,0">
-                                    <Run Text="↑ "/><Run Text="{Binding TempHigh, Converter={StaticResource TempConv}}"/>
+                        <!-- ===== 天气核心大卡片 ===== -->
+                        <Border Background="#CCFFFFFF" CornerRadius="24" Padding="0,20,0,20"
+                                Margin="0,10,0,0" BorderBrush="#40FFFFFF" BorderThickness="1">
+                            <StackPanel HorizontalAlignment="Center">
+                                <!-- 天气图标 -->
+                                <TextBlock Text="{Binding WeatherIcon, Converter={StaticResource IconConv}}"
+                                           FontFamily="{StaticResource SymbolFont}"
+                                           FontSize="64" HorizontalAlignment="Center" Margin="0,0,0,-4"
+                                           Foreground="#FFFFB300"/>
+                                <!-- 大号温度 -->
+                                <TextBlock FontSize="96" FontWeight="ExtraLight"
+                                           Foreground="#FF1A237E"
+                                           HorizontalAlignment="Center" Margin="0,-4,0,0"
+                                           Text="{Binding CurrentTemp, Converter={StaticResource TempConv}}"/>
+                                <!-- 天气描述 -->
+                                <TextBlock Text="{Binding WeatherDesc}" FontSize="15"
+                                           Foreground="#FF4A90D9" HorizontalAlignment="Center"
+                                           Margin="0,2,0,0" FontWeight="Normal"/>
+                                <!-- 体感温度 -->
+                                <TextBlock FontSize="12" Foreground="#FF90A4AE"
+                                           HorizontalAlignment="Center" Margin="0,4,0,0">
+                                    <Run Text="体感 "/><Run Text="{Binding FeelsLike, Converter={StaticResource TempConv}}"/>
                                 </TextBlock>
-                                <TextBlock Foreground="#CC4FC3F7" FontSize="16">
-                                    <Run Text="↓ "/><Run Text="{Binding TempLow, Converter={StaticResource TempConv}}"/>
-                                </TextBlock>
+                                <!-- 最高最低对比 -->
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                                            Margin="0,12,0,0">
+                                    <Border Background="#2600BCD4" CornerRadius="20" Padding="14,7"
+                                            Margin="0,0,8,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#x25BC; " FontSize="11" Foreground="#FF00BCD4"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding TempLow, Converter={StaticResource TempConv}}"
+                                                       FontSize="14" FontWeight="SemiLight" Foreground="#FF00BCD4"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Background="#26FF8C00" CornerRadius="20" Padding="14,7"
+                                            Margin="8,0,0,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#x25B2; " FontSize="11" Foreground="#FFFF8C00"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding TempHigh, Converter={StaticResource TempConv}}"
+                                                       FontSize="14" FontWeight="SemiLight" Foreground="#FFFF8C00"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
                             </StackPanel>
-                        </StackPanel>
+                        </Border>
 
-                        <!-- 6 格详情卡片 -->
-                        <ItemsControl ItemsSource="{Binding DetailCards}" Margin="0,10,0,0">
+                        <!-- ===== 6格详情卡片 (2×3) ===== -->
+                        <TextBlock Text="详细信息" FontSize="13" FontWeight="SemiLight"
+                                   Foreground="#FF37474F" Margin="0,16,0,8"/>
+                        <ItemsControl ItemsSource="{Binding DetailCards}" Margin="0,0,0,0">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <WrapGrid MaximumRowsOrColumns="2" Orientation="Horizontal"
-                                              HorizontalAlignment="Stretch"/>
+                                    <WrapGrid MaximumRowsOrColumns="3" Orientation="Horizontal"
+                                              HorizontalAlignment="Center"/>
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Background="#1AFFFFFF" CornerRadius="12" Margin="4,4" Padding="14,12"
-                                            Width="170">
-                                        <StackPanel>
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding Icon}" FontSize="20" Margin="0,0,6,0"/>
-                                                <TextBlock Text="{Binding Title}" FontSize="13"
-                                                           Foreground="#88FFFFFF"/>
-                                            </StackPanel>
-                                            <TextBlock Text="{Binding Value}" FontSize="20"
-                                                       FontWeight="SemiLight" Foreground="White" Margin="0,4,0,0"/>
+                                    <Border Background="#CCFFFFFF" CornerRadius="14" Margin="3"
+                                            Width="100" Height="88" BorderBrush="#30FFFFFF" BorderThickness="1">
+                                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                            <TextBlock Text="{Binding Icon}" FontSize="18"
+                                                       FontFamily="{StaticResource SymbolFont}"
+                                                       Foreground="#FF4A90D9"
+                                                       HorizontalAlignment="Center" Margin="0,0,0,2"/>
+                                            <TextBlock Text="{Binding Value}" FontSize="15"
+                                                       FontWeight="SemiLight" Foreground="#FF1A237E"
+                                                       HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                            <TextBlock Text="{Binding Title}" FontSize="10"
+                                                       Foreground="#FF90A4AE"
+                                                       HorizontalAlignment="Center" Margin="0,4,0,0"/>
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-
-                        <!-- 更新时间 -->
-                        <TextBlock Margin="0,16,0,0" FontSize="12" Foreground="#66FFFFFF"
-                                   HorizontalAlignment="Center"
-                                   Text="{Binding FetchedAt, Converter={StaticResource RelTimeConv}}"/>
 
                     </StackPanel>
                 </ScrollViewer>
@@ -121,24 +228,29 @@
             <!-- ==================== 逐时预报 ==================== -->
             <PivotItem Header="逐时">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="20,10,20,20">
+                    <StackPanel Margin="16,4,16,12">
 
-                        <!-- 降雨概率提示条 -->
-                        <Border Background="#264FC3F7" CornerRadius="8" Padding="14,10" Margin="0,0,0,12"
+                        <!-- 降雨提示 -->
+                        <Border Background="#2600BCD4" CornerRadius="10" Padding="12,8"
+                                Margin="0,0,0,8" BorderBrush="#4000BCD4" BorderThickness="1"
                                 Visibility="{Binding RainInfo.MaxPop, Converter={StaticResource Bool2Vis}}">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="🌧" FontSize="18" Margin="0,0,8,0"/>
+                                <TextBlock Text="&#x2602;" FontSize="13"
+                                           FontFamily="{StaticResource SymbolFont}"
+                                           Foreground="#FF00BCD4" Margin="0,0,8,0" VerticalAlignment="Center"/>
                                 <TextBlock Text="{Binding RainInfo, Converter={StaticResource RainConv}}"
-                                           FontSize="14" Foreground="#CC4FC3F7"/>
+                                           FontSize="11" Foreground="#CC00BCD4" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Border>
 
-                        <!-- 横向滚动逐时卡片 -->
-                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                        <!-- 横向逐时卡片 -->
+                        <TextBlock Text="逐时预报" FontSize="13" FontWeight="SemiLight"
+                                   Foreground="#FF37474F" Margin="0,0,0,8"/>
+                        <ScrollViewer x:Name="HourlyScroller" HorizontalScrollBarVisibility="Auto"
                                       VerticalScrollBarVisibility="Disabled"
                                       HorizontalScrollMode="Enabled"
                                       VerticalScrollMode="Disabled"
-                                      Height="160">
+                                      Height="110">
                             <ItemsControl ItemsSource="{Binding HourlyItems}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -147,20 +259,28 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Width="68" Margin="2,0" Padding="4,10">
+                                        <Border Width="56" Margin="2,0" CornerRadius="12"
+                                                Background="#CCFFFFFF" Padding="3,6"
+                                                BorderBrush="#30FFFFFF" BorderThickness="1">
                                             <StackPanel HorizontalAlignment="Center">
-                                                <TextBlock Text="{Binding Time, Converter={StaticResource IconConv}}"
-                                                           FontSize="11" Foreground="#88FFFFFF"
+                                                <TextBlock Text="{Binding Time, Converter={StaticResource HourConv}}"
+                                                           FontSize="9" Foreground="#FF90A4AE"
                                                            HorizontalAlignment="Center"/>
                                                 <TextBlock Text="{Binding WeatherIcon, Converter={StaticResource IconConv}}"
-                                                           FontSize="24" HorizontalAlignment="Center" Margin="0,4,0,4"/>
+                                                           FontFamily="{StaticResource SymbolFont}"
+                                                           FontSize="16" HorizontalAlignment="Center"
+                                                           Margin="0,3,0,1" Foreground="#FFFFB300"/>
                                                 <TextBlock Text="{Binding Temperature, Converter={StaticResource TempConv}}"
-                                                           FontSize="16" Foreground="White"
+                                                           FontSize="13" FontWeight="SemiLight"
+                                                           Foreground="#FF1A237E"
                                                            HorizontalAlignment="Center"/>
-                                                <TextBlock Foreground="#CC4FC3F7" FontSize="11"
-                                                           HorizontalAlignment="Center" Margin="0,4,0,0">
-                                                    <Run Text="{Binding PrecipitationProbability}"/><Run Text="%"/>
-                                                </TextBlock>
+                                                <Border Background="#2600BCD4" CornerRadius="5"
+                                                        Padding="4,1" Margin="0,2,0,0" HorizontalAlignment="Center">
+                                                    <TextBlock Foreground="#FF00BCD4" FontSize="7"
+                                                               HorizontalAlignment="Center">
+                                                        <Run Text="{Binding PrecipitationProbability}"/><Run Text="%"/>
+                                                    </TextBlock>
+                                                </Border>
                                             </StackPanel>
                                         </Border>
                                     </DataTemplate>
@@ -168,10 +288,12 @@
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <!-- 温度趋势折线图 -->
-                        <TextBlock Text="温度趋势" FontSize="16" Foreground="#AAFFFFFF" Margin="0,16,0,8"/>
-                        <Border Background="#1AFFFFFF" CornerRadius="8" Padding="8" Height="160">
-                            <Canvas x:Name="TempChartCanvas" SizeChanged="OnTempChartSizeChanged"/>
+                        <!-- 温度折线图 -->
+                        <TextBlock Text="温度趋势" FontSize="13" FontWeight="SemiLight"
+                                   Foreground="#FF37474F" Margin="0,12,0,6"/>
+                        <Border Background="#CCFFFFFF" CornerRadius="14"
+                                Padding="6,6,6,20" BorderBrush="#30FFFFFF" BorderThickness="1">
+                            <Canvas x:Name="TempChartCanvas" Height="200" SizeChanged="OnTempChartSizeChanged"/>
                         </Border>
 
                     </StackPanel>
@@ -181,63 +303,102 @@
             <!-- ==================== 逐日预报 ==================== -->
             <PivotItem Header="逐日">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="20,10,20,20">
+                    <StackPanel Margin="16,4,16,12">
 
                         <!-- 本周摘要 -->
-                        <Border Background="#1AFFFFFF" CornerRadius="10" Padding="14,12" Margin="0,0,0,12">
+                        <Border Background="#CCFFFFFF" CornerRadius="14" Padding="12,10"
+                                Margin="0,0,0,10" BorderBrush="#30FFFFFF" BorderThickness="1">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="📋" FontSize="18" Margin="0,0,8,0"/>
-                                <TextBlock x:Name="WeekSummaryText" FontSize="14" Foreground="#AAFFFFFF"
-                                           TextWrapping="Wrap" Text="本周天气概览"/>
+                                <TextBlock Text="&#x2600;" FontSize="14"
+                                           FontFamily="{StaticResource SymbolFont}"
+                                           Foreground="#FFFFB300" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock FontSize="12" FontWeight="SemiLight"
+                                           Foreground="#FF37474F" TextWrapping="Wrap"
+                                           Text="{Binding WeekSummary}"
+                                           VerticalAlignment="Center"/>
                             </StackPanel>
                         </Border>
 
                         <!-- 逐日列表 -->
+                        <TextBlock Text="7天预报" FontSize="13" FontWeight="SemiLight"
+                                   Foreground="#FF37474F" Margin="0,0,0,8"/>
                         <ItemsControl ItemsSource="{Binding DailyItems}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Button Background="Transparent" HorizontalAlignment="Stretch"
-                                            HorizontalContentAlignment="Stretch" Padding="0" Margin="0,2"
+                                            HorizontalContentAlignment="Stretch" Padding="0" Margin="0,1"
+                                            BorderThickness="0"
                                             Click="OnDayClick">
-                                        <Border Background="#1AFFFFFF" CornerRadius="10" Padding="14,10">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <ContentPresenter/>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <Border Background="#CCFFFFFF" CornerRadius="14"
+                                                Padding="12,12" BorderBrush="#30FFFFFF" BorderThickness="1">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="50"/>
-                                                    <ColumnDefinition Width="36"/>
                                                     <ColumnDefinition Width="40"/>
                                                     <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="40"/>
+                                                    <ColumnDefinition Width="38"/>
                                                     <ColumnDefinition Width="40"/>
                                                 </Grid.ColumnDefinitions>
 
                                                 <!-- 星期 -->
-                                                <TextBlock Grid.Column="0" Text="{Binding DayOfWeek}"
-                                                           FontSize="14" Foreground="White" VerticalAlignment="Center"/>
-                                                <!-- 天气图标 -->
-                                                <TextBlock Grid.Column="1"
-                                                           Text="{Binding IconDay, Converter={StaticResource IconConv}}"
-                                                           FontSize="20" HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center"/>
+                                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding DayOfWeek}"
+                                                               FontSize="13" FontWeight="SemiLight"
+                                                               Foreground="#FF1A237E"/>
+                                                    <TextBlock FontSize="9" Foreground="#FF90A4AE"
+                                                               Margin="0,1,0,0">
+                                                        <Run Text="{Binding PrecipitationProbability}"/><Run Text="%"/>
+                                                    </TextBlock>
+                                                </StackPanel>
+
+                                                <!-- 天气图标 + 描述 + 温度条 -->
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding IconDay, Converter={StaticResource IconConv}}"
+                                                                   FontFamily="{StaticResource SymbolFont}"
+                                                                   FontSize="16" VerticalAlignment="Center"
+                                                                   Margin="0,0,4,0" Foreground="#FFFFB300"/>
+                                                        <TextBlock Text="{Binding WeatherDesc}" FontSize="11"
+                                                                   Foreground="#FF37474F" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                    <!-- 温度条 -->
+                                                    <Grid Margin="0,4,0,0">
+                                                        <Border Background="#1A37474F" CornerRadius="3" Height="4"/>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="{Binding TempBarLeftRatio, Converter={StaticResource RatioConv}}"/>
+                                                                <ColumnDefinition Width="{Binding TempBarRatio, Converter={StaticResource RatioConv}}"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Border Grid.Column="1" CornerRadius="3"
+                                                                    Height="4" HorizontalAlignment="Stretch">
+                                                                <Border.Background>
+                                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                                        <GradientStop Color="#FF00BCD4" Offset="0"/>
+                                                                        <GradientStop Color="#FFFF8C00" Offset="1"/>
+                                                                    </LinearGradientBrush>
+                                                                </Border.Background>
+                                                            </Border>
+                                                        </Grid>
+                                                    </Grid>
+                                                </StackPanel>
+
                                                 <!-- 低温 -->
-                                                <TextBlock Grid.Column="2" FontSize="14" Foreground="#CC4FC3F7"
+                                                <TextBlock Grid.Column="2" FontSize="12"
+                                                           FontWeight="SemiLight"
+                                                           Foreground="#FF00BCD4"
                                                            VerticalAlignment="Center" HorizontalAlignment="Right"
                                                            Text="{Binding TempMin, Converter={StaticResource TempConv}}"/>
-                                                <!-- 温度条 -->
-                                                <Grid Grid.Column="3" Margin="8,0">
-                                                    <Border Background="#33FFFFFF" CornerRadius="3" Height="6"
-                                                            VerticalAlignment="Center"/>
-                                                    <Border x:Name="TempBar" Background="#FFFF9500" CornerRadius="3"
-                                                            Height="6" VerticalAlignment="Center"
-                                                            HorizontalAlignment="Left"/>
-                                                </Grid>
+
                                                 <!-- 高温 -->
-                                                <TextBlock Grid.Column="4" FontSize="14" Foreground="#CCFF6B35"
+                                                <TextBlock Grid.Column="3" FontSize="13"
+                                                           FontWeight="SemiLight"
+                                                           Foreground="#FFFF8C00"
                                                            VerticalAlignment="Center" HorizontalAlignment="Right"
                                                            Text="{Binding TempMax, Converter={StaticResource TempConv}}"/>
-                                                <!-- 降雨概率 -->
-                                                <TextBlock Grid.Column="5" FontSize="12" Foreground="#CC4FC3F7"
-                                                           VerticalAlignment="Center" HorizontalAlignment="Right"
-                                                           Text="{Binding PrecipitationProbability}"/>
                                             </Grid>
                                         </Border>
                                     </Button>
@@ -252,12 +413,13 @@
 
         <!-- 逐日详情 Popup -->
         <Popup x:Name="DayDetailPopup" IsLightDismissEnabled="True"
-               HorizontalAlignment="Center" VerticalAlignment="Center">
-            <Border x:Name="DayDetailBorder" Background="#FF1E1E2E" CornerRadius="16"
-                    Padding="24,20" MinWidth="280" Margin="20">
+               HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,80,0,0">
+            <Border x:Name="DayDetailBorder" CornerRadius="20"
+                    Padding="24,22" MinWidth="280" Margin="24,0"
+                    Background="#F0FFFFFF" BorderBrush="#40FFFFFF" BorderThickness="1">
                 <StackPanel>
-                    <TextBlock x:Name="PopupDayTitle" FontSize="20" FontWeight="SemiBold"
-                               Foreground="White" Margin="0,0,0,12"/>
+                    <TextBlock x:Name="PopupDayTitle" FontSize="17" FontWeight="SemiLight"
+                               Foreground="#FF1A237E" Margin="0,0,0,14"/>
                     <StackPanel x:Name="PopupDetailPanel"/>
                 </StackPanel>
             </Border>
@@ -266,10 +428,11 @@
     </Grid>
 
     <Page.BottomAppBar>
-        <CommandBar Background="#FF1A1A2E" Foreground="White">
-            <AppBarButton Icon="Refresh" Label="刷新" Click="OnRefreshClick" Foreground="White"/>
-            <AppBarButton Icon="Find" Label="搜索" Click="OnSearchClick" Foreground="White"/>
-            <AppBarButton Icon="Pin" Label="固定磁贴" Click="OnPinTileClick" Foreground="White"/>
+        <CommandBar Background="#F0FFFFFF" Foreground="#FF4A90D9">
+            <AppBarButton Icon="Refresh" Label="刷新" Click="OnRefreshClick" Foreground="#FF4A90D9"/>
+            <AppBarButton Icon="Find" Label="搜索" Click="OnSearchClick" Foreground="#FF4A90D9"/>
+            <AppBarButton Icon="Pin" Label="固定磁贴" Click="OnPinTileClick" Foreground="#FF4A90D9"/>
+            <AppBarButton Icon="Setting" Label="设置" Click="OnSettingsClick" Foreground="#FF4A90D9"/>
         </CommandBar>
     </Page.BottomAppBar>
 </Page>

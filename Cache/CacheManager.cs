@@ -1,6 +1,8 @@
 using System;
+using System.IO;
+using System.Runtime.Serialization.Json;
+using System.Text;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
 using Windows.Storage;
 using WeatherAppRT2._0.Models;
 
@@ -22,6 +24,29 @@ namespace WeatherAppRT2._0.Cache
             catch { return null; }
         }
 
+        #region 通用序列化
+
+        private static T Deserialize<T>(string json) where T : class
+        {
+            using (var ms = new MemoryStream(Encoding.UTF8.GetBytes(json)))
+            {
+                var serializer = new DataContractJsonSerializer(typeof(T));
+                return serializer.ReadObject(ms) as T;
+            }
+        }
+
+        private static string Serialize<T>(T obj)
+        {
+            using (var ms = new MemoryStream())
+            {
+                var serializer = new DataContractJsonSerializer(typeof(T));
+                serializer.WriteObject(ms, obj);
+                return Encoding.UTF8.GetString(ms.ToArray(), 0, (int)ms.Length);
+            }
+        }
+
+        #endregion
+
         #region 天气缓存
 
         public static async Task<WeatherData> GetCachedWeatherAsync()
@@ -32,7 +57,7 @@ namespace WeatherAppRT2._0.Cache
                 if (file == null) { System.Diagnostics.Debug.WriteLine("[Cache] 缓存文件不存在"); return null; }
 
                 var json = await FileIO.ReadTextAsync(file);
-                var data = JsonConvert.DeserializeObject<WeatherData>(json);
+                var data = Deserialize<WeatherData>(json);
 
                 if (data != null && (DateTime.Now - data.FetchedAt).TotalMinutes < AppConfig.CacheMaxAgeMinutes)
                 {
@@ -54,7 +79,7 @@ namespace WeatherAppRT2._0.Cache
                 if (file == null) { System.Diagnostics.Debug.WriteLine("[Cache] StaleCache: 文件不存在"); return null; }
 
                 var json = await FileIO.ReadTextAsync(file);
-                var data = JsonConvert.DeserializeObject<WeatherData>(json);
+                var data = Deserialize<WeatherData>(json);
                 System.Diagnostics.Debug.WriteLine("[Cache] StaleCache 读取成功: {0}", data?.City?.Name);
                 return data;
             }
@@ -67,7 +92,7 @@ namespace WeatherAppRT2._0.Cache
             try
             {
                 data.FetchedAt = DateTime.Now;
-                var json = JsonConvert.SerializeObject(data);
+                var json = Serialize(data);
                 var file = await LocalFolder.CreateFileAsync(CacheFileName, CreationCollisionOption.ReplaceExisting);
                 await FileIO.WriteTextAsync(file, json);
                 System.Diagnostics.Debug.WriteLine("[Cache] 缓存已保存: {0} bytes", json.Length);
@@ -87,7 +112,7 @@ namespace WeatherAppRT2._0.Cache
                 if (file == null) return AppSettings.GetDefault();
 
                 var json = await FileIO.ReadTextAsync(file);
-                return JsonConvert.DeserializeObject<AppSettings>(json) ?? AppSettings.GetDefault();
+                return Deserialize<AppSettings>(json) ?? AppSettings.GetDefault();
             }
             catch
             {
@@ -99,7 +124,7 @@ namespace WeatherAppRT2._0.Cache
         {
             try
             {
-                var json = JsonConvert.SerializeObject(settings);
+                var json = Serialize(settings);
                 var file = await LocalFolder.CreateFileAsync(SettingsFileName, CreationCollisionOption.ReplaceExisting);
                 await FileIO.WriteTextAsync(file, json);
             }

@@ -7,65 +7,102 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
-    RequestedTheme="Dark"
-    Background="#FF0C0C14">
+    RequestedTheme="Light"
+    Background="#FFE8F0FE">
 
     <Page.Resources>
         <conv:BoolToVisibilityConverter x:Key="Bool2Vis"/>
         <conv:InverseBoolToVisibilityConverter x:Key="InvBool2Vis"/>
+        <FontFamily x:Key="SymbolFont">Segoe UI Symbol</FontFamily>
     </Page.Resources>
 
-    <Grid Background="#FF0C0C14">
+    <Grid Background="#FFE8F0FE">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
+        <!-- 天空渐变背景 -->
+        <Grid Grid.RowSpan="3" VerticalAlignment="Top" Height="240">
+            <Grid.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#FF81D4FA" Offset="0.0"/>
+                    <GradientStop Color="#FFB3E5FC" Offset="0.3"/>
+                    <GradientStop Color="#FFE1F5FE" Offset="0.65"/>
+                    <GradientStop Color="#FFE8F0FE" Offset="1.0"/>
+                </LinearGradientBrush>
+            </Grid.Background>
+        </Grid>
+
         <!-- 顶部标题栏 -->
-        <StackPanel Grid.Row="0" Margin="20,16,20,0">
-            <TextBlock Text="搜索城市" FontSize="28" FontWeight="Light" Foreground="White"/>
+        <StackPanel Grid.Row="0" Margin="18,12,18,0">
+            <TextBlock Text="搜索城市" FontSize="28" FontWeight="SemiLight" Foreground="#FF1A237E"/>
         </StackPanel>
 
         <!-- 搜索框 -->
-        <Grid Grid.Row="1" Margin="20,12,20,0">
-            <TextBox x:Name="SearchBox"
-                     PlaceholderText="输入城市名（中文/英文）"
-                     TextChanged="OnSearchTextChanged"
-                     Background="#1AFFFFFF" Foreground="White"
-                     BorderBrush="#33FFFFFF" BorderThickness="1"
-                     FontSize="16" Padding="12,10"
-                     InputScope="Search"/>
+        <Grid Grid.Row="1" Margin="18,12,18,0">
+            <Border Background="#CCFFFFFF" CornerRadius="14" BorderBrush="#40FFFFFF" BorderThickness="1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="&#x1F50D;" FontSize="18"
+                               FontFamily="{StaticResource SymbolFont}"
+                               Foreground="#FF90A4AE" VerticalAlignment="Center" Margin="14,0,4,0"/>
+                    <TextBox x:Name="SearchBox" Grid.Column="1"
+                             PlaceholderText="输入城市名（中文/英文）"
+                             TextChanged="OnSearchTextChanged"
+                             Background="Transparent" Foreground="#FF1A237E"
+                             BorderBrush="Transparent" BorderThickness="0"
+                             FontSize="16" Padding="4,12,14,12"
+                             InputScope="Search"/>
+                </Grid>
+            </Border>
         </Grid>
 
-        <!-- 搜索结果 / 已收藏列表 -->
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
-            <StackPanel Margin="20,0,20,20">
+        <!-- 搜索结果 / 搜索历史列表 -->
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+            <StackPanel Margin="18,0,18,18">
 
                 <!-- 搜索结果 -->
-                <TextBlock Text="搜索结果" FontSize="16" Foreground="#88FFFFFF" Margin="0,8,0,8"
+                <TextBlock Text="搜索结果" FontSize="16" FontWeight="SemiLight"
+                           Foreground="#FF607D8B" Margin="0,8,0,8"
                            x:Name="SearchResultHeader" Visibility="Collapsed"/>
                 <ItemsControl x:Name="SearchResultsList">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Button Background="Transparent" HorizontalAlignment="Stretch"
-                                    HorizontalContentAlignment="Stretch" Padding="0" Margin="0,2"
+                                    HorizontalContentAlignment="Stretch" Padding="0" Margin="0,3"
+                                    BorderThickness="0"
                                     Click="OnSearchResultClick">
-                                <Border Background="#1AFFFFFF" CornerRadius="10" Padding="14,12">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <ContentPresenter/>
+                                    </ControlTemplate>
+                                </Button.Template>
+                                <Border Background="#CCFFFFFF" CornerRadius="14" Padding="16,14"
+                                        BorderBrush="#30FFFFFF" BorderThickness="1">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0">
-                                            <TextBlock Text="{Binding Name}" FontSize="16" Foreground="White"/>
-                                            <TextBlock FontSize="12" Foreground="#66FFFFFF" Margin="0,2,0,0">
+                                            <TextBlock Text="{Binding Name}" FontSize="17" FontWeight="SemiLight"
+                                                       Foreground="#FF1A237E"/>
+                                            <TextBlock FontSize="12" Foreground="#FF90A4AE" Margin="0,3,0,0">
                                                 <Run Text="{Binding Adm1}"/><Run Text=" · "/><Run Text="{Binding Country}"/>
                                             </TextBlock>
                                         </StackPanel>
-                                        <TextBlock Grid.Column="1" Text="✓" FontSize="18" Foreground="#FF4FC3F7"
-                                                   VerticalAlignment="Center" Margin="8,0,0,0"
-                                                   Visibility="{Binding IsSaved, Converter={StaticResource Bool2Vis}}"/>
+                                        <!-- 已在历史中 -->
+                                        <Border Grid.Column="1" Background="#1A4A90D9" CornerRadius="16" Padding="14,7"
+                                                VerticalAlignment="Center" Margin="12,0,0,0"
+                                                Visibility="{Binding IsSaved, Converter={StaticResource Bool2Vis}}">
+                                            <TextBlock Text="已搜索" FontSize="14"
+                                                       Foreground="#FF4A90D9"/>
+                                        </Border>
                                     </Grid>
                                 </Border>
                             </Button>
@@ -73,40 +110,59 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <!-- 已收藏城市 -->
-                <TextBlock Text="已收藏城市" FontSize="16" Foreground="#88FFFFFF" Margin="0,16,0,8"/>
+                <!-- 搜索历史 -->
+                <TextBlock Text="搜索历史" FontSize="16" FontWeight="SemiLight"
+                           Foreground="#FF607D8B" Margin="0,16,0,8"
+                           x:Name="HistoryHeader"/>
                 <ItemsControl x:Name="SavedCitiesList">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Background="#1AFFFFFF" CornerRadius="10" Padding="14,12" Margin="0,2">
+                            <Border Background="#CCFFFFFF" CornerRadius="14" Padding="16,14"
+                                    Margin="0,3" BorderBrush="#30FFFFFF" BorderThickness="1">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- 定位图标 -->
-                                    <TextBlock Grid.Column="0" Text="📍" FontSize="16" Margin="0,0,8,0"
-                                               VerticalAlignment="Center"
-                                               Visibility="{Binding IsCurrentLocation, Converter={StaticResource Bool2Vis}}"/>
-
                                     <!-- 城市信息（可点击切换） -->
-                                    <Button Grid.Column="1" Background="Transparent" Padding="0"
-                                            HorizontalAlignment="Left" Click="OnSavedCityClick">
+                                    <Button Grid.Column="0" Background="Transparent" Padding="0"
+                                            BorderThickness="0"
+                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                            Click="OnSavedCityClick">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <ContentPresenter/>
+                                            </ControlTemplate>
+                                        </Button.Template>
                                         <StackPanel>
-                                            <TextBlock Text="{Binding Name}" FontSize="16" Foreground="White"/>
+                                            <TextBlock Text="{Binding Name}" FontSize="17" FontWeight="SemiLight"
+                                                       Foreground="#FF1A237E"/>
                                             <TextBlock Text="{Binding Adm1}" FontSize="12"
-                                                       Foreground="#66FFFFFF" Margin="0,2,0,0"/>
+                                                       Foreground="#FF90A4AE" Margin="0,3,0,0"/>
                                         </StackPanel>
                                     </Button>
 
                                     <!-- 删除按钮 -->
-                                    <Button Grid.Column="2" Background="Transparent" Padding="8,4"
-                                            Click="OnDeleteCityClick" Foreground="#CCFF6B6B"
-                                            VerticalAlignment="Center" FontSize="18"
-                                            Content="✕"
-                                            Visibility="{Binding IsCurrentLocation, Converter={StaticResource InvBool2Vis}}"/>
+                                    <Button Grid.Column="1" Padding="0"
+                                            BorderThickness="0" Width="40" Height="40"
+                                            Click="OnDeleteCityClick"
+                                            VerticalAlignment="Center" Margin="8,0,0,0">
+                                        <Button.Background>
+                                            <SolidColorBrush Color="#15EF5350"/>
+                                        </Button.Background>
+                                        <Button.Content>
+                                            <Grid Width="40" Height="40">
+                                                <Border Background="#15EF5350" CornerRadius="20" Width="40" Height="40">
+                                                    <TextBlock Text="&#x2715;" FontSize="14"
+                                                               FontFamily="{StaticResource SymbolFont}"
+                                                               Foreground="#FFEF5350"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"/>
+                                                </Border>
+                                            </Grid>
+                                        </Button.Content>
+                                    </Button>
                                 </Grid>
                             </Border>
                         </DataTemplate>

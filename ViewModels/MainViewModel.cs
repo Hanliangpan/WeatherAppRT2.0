@@ -22,6 +22,17 @@ namespace WeatherAppRT2._0.ViewModels
         private AppSettings _settings;
         private CancellationTokenSource _refreshCts;
         private int _isRefreshing = 0; // 0=空闲, 1=正在刷新
+        private DateTime _lastManualRefresh = DateTime.MinValue;
+
+        /// <summary>距上次手动刷新已过分钟数</summary>
+        public double CooldownMinutesRemaining
+        {
+            get
+            {
+                var elapsed = (DateTime.Now - _lastManualRefresh).TotalMinutes;
+                return Math.Max(0, AppConfig.ManualRefreshCooldownMinutes - elapsed);
+            }
+        }
 
         public MainViewModel()
         {
@@ -98,9 +109,26 @@ namespace WeatherAppRT2._0.ViewModels
 
         #region 集合
 
-        public ObservableCollection<HourlyForecast> HourlyItems { get; set; }
-        public ObservableCollection<DailyForecast> DailyItems { get; set; }
-        public ObservableCollection<DetailCard> DetailCards { get; set; }
+        private ObservableCollection<HourlyForecast> _hourlyItems;
+        public ObservableCollection<HourlyForecast> HourlyItems
+        {
+            get { return _hourlyItems; }
+            set { Set(ref _hourlyItems, value); }
+        }
+
+        private ObservableCollection<DailyForecast> _dailyItems;
+        public ObservableCollection<DailyForecast> DailyItems
+        {
+            get { return _dailyItems; }
+            set { Set(ref _dailyItems, value); }
+        }
+
+        private ObservableCollection<DetailCard> _detailCards;
+        public ObservableCollection<DetailCard> DetailCards
+        {
+            get { return _detailCards; }
+            set { Set(ref _detailCards, value); }
+        }
 
         #endregion
 
@@ -108,6 +136,13 @@ namespace WeatherAppRT2._0.ViewModels
 
         private RainInfo _rainInfo;
         public RainInfo RainInfo { get { return _rainInfo; } set { Set(ref _rainInfo, value); } }
+
+        #endregion
+
+        #region 每周摘要
+
+        private string _weekSummary = "本周天气概览";
+        public string WeekSummary { get { return _weekSummary; } set { Set(ref _weekSummary, value); } }
 
         #endregion
 
@@ -127,6 +162,28 @@ namespace WeatherAppRT2._0.ViewModels
             _settings = await CacheManager.LoadSettingsAsync();
             System.Diagnostics.Debug.WriteLine("[VM] Settings loaded: DefaultCity={0} ({1})",
                 _settings?.DefaultCityName, _settings?.DefaultCityId);
+
+            // Task 5: 确保默认城市在收藏列表中
+            if (_settings != null)
+            {
+                if (_settings.SavedCities == null)
+                    _settings.SavedCities = new List<CityInfo>();
+
+                // 如果收藏列表为空，自动添加默认城市
+                if (_settings.SavedCities.Count == 0)
+                {
+                    _settings.SavedCities.Add(new CityInfo
+                    {
+                        Id = AppConfig.DefaultCityId,
+                        Name = AppConfig.DefaultCityName,
+                        Latitude = AppConfig.DefaultLatitude,
+                        Longitude = AppConfig.DefaultLongitude,
+                        IsCurrentLocation = false
+                    });
+                    await CacheManager.SaveSettingsAsync(_settings);
+                    System.Diagnostics.Debug.WriteLine("[VM] 已将默认城市 {0} 添加到收藏列表", AppConfig.DefaultCityName);
+                }
+            }
 
             // 先显示缓存
             bool hasCachedData = false;
@@ -158,7 +215,7 @@ namespace WeatherAppRT2._0.ViewModels
             // 之前 await RefreshAsync() 会阻塞整个页面加载流程，
             // 导致即使有 Mock 数据，UI 也无法渲染
             System.Diagnostics.Debug.WriteLine("[VM] 启动后台刷新...");
-            RefreshAsync().ContinueWith(t =>
+            var _ = RefreshAsync().ContinueWith(t =>
             {
                 if (t.Exception != null)
                     System.Diagnostics.Debug.WriteLine("[VM] 后台刷新异常: " + t.Exception.InnerException?.Message);
@@ -173,6 +230,22 @@ namespace WeatherAppRT2._0.ViewModels
             {
                 System.Diagnostics.Debug.WriteLine("[VM] RefreshAsync 跳过（已有刷新在进行中） caller={0}", caller);
                 return;
+            }
+
+            // Task 4: 手动刷新冷却检查（非初始化调用时）
+            bool isManual = caller != "InitializeAsync";
+            if (isManual && _lastManualRefresh != DateTime.MinValue)
+            {
+                var elapsed = (DateTime.Now - _lastManualRefresh).TotalMinutes;
+                if (elapsed < AppConfig.ManualRefreshCooldownMinutes)
+                {
+                    int remaining = (int)Math.Ceiling(AppConfig.ManualRefreshCooldownMinutes - elapsed);
+                    System.Diagnostics.Debug.WriteLine("[VM] 冷却中，剩余 {0} 分钟", remaining);
+                    HasError = true;
+                    ErrorMessage = string.Format("请等待 {0} 分钟后再刷新", remaining);
+                    Interlocked.Exchange(ref _isRefreshing, 0);
+                    return;
+                }
             }
 
             System.Diagnostics.Debug.WriteLine("[VM] RefreshAsync 开始 caller={0}", caller);
@@ -257,6 +330,8 @@ namespace WeatherAppRT2._0.ViewModels
             finally
             {
                 IsLoading = false;
+                if (isManual)
+                    _lastManualRefresh = DateTime.Now;
                 System.Diagnostics.Debug.WriteLine("[VM] RefreshAsync 结束, IsLoading=false");
             }
 
@@ -280,13 +355,7 @@ namespace WeatherAppRT2._0.ViewModels
 
             try
             {
-                // 确保 _settings 不为 null
-                if (_settings == null)
-                {
-                    System.Diagnostics.Debug.WriteLine("[VM] SwitchToCity: 加载 settings...");
-                    _settings = await CacheManager.LoadSettingsAsync();
-                }
-
+                // CitySearchPage 已保存过 settings（含 SearchHistory），这里只更新默认城市 ID/Name 并保存一次
                 var weather = await _apiClient.GetFullWeatherByCityIdAsync(cityId, cityName);
                 if (weather != null)
                 {
@@ -294,10 +363,10 @@ namespace WeatherAppRT2._0.ViewModels
                     UpdateFromWeatherData(weather);
                     await CacheManager.SaveToCacheAsync(weather);
 
-                    // 同步更新磁贴和锁屏（Badge + 详细状态文字）
+                    // 同步更新磁贴和锁屏
                     TileService.UpdatePrimaryTile(weather);
 
-                    // 更新默认城市
+                    // 合并 settings 更新 + 保存为一次 IO（不再重复 LoadSettingsAsync）
                     _settings.DefaultCityId = cityId;
                     _settings.DefaultCityName = cityName;
                     await CacheManager.SaveSettingsAsync(_settings);
@@ -326,6 +395,10 @@ namespace WeatherAppRT2._0.ViewModels
         {
             if (data == null) return;
 
+            // 成功加载数据后清除错误状态
+            HasError = false;
+            ErrorMessage = "";
+
             CityName = data.City?.Name ?? "未知";
             FetchedAt = data.FetchedAt;
 
@@ -342,29 +415,35 @@ namespace WeatherAppRT2._0.ViewModels
                 CurrentWeatherData = data.Current;
             }
 
-            // 逐日预报
-            DailyItems.Clear();
-            if (data.Daily != null)
+            // 逐日预报 — 批量替换减少 UI 刷新次数
+            if (data.Daily != null && data.Daily.Count > 0)
             {
-                foreach (var d in data.Daily)
-                    DailyItems.Add(d);
+                double allMin = data.Daily.Min(d => d.TempMin);
+                double allMax = data.Daily.Max(d => d.TempMax);
+                double allRange = allMax - allMin;
+                if (allRange < 1) allRange = 1;
 
-                if (data.Daily.Count > 0)
+                foreach (var d in data.Daily)
                 {
-                    TempHigh = data.Daily[0].TempMax;
-                    TempLow = data.Daily[0].TempMin;
-                    Sunrise = data.Daily[0].Sunrise ?? "—";
+                    d.TempBarLeftRatio = (d.TempMin - allMin) / allRange;
+                    d.TempBarRatio = (d.TempMax - d.TempMin) / allRange;
                 }
+
+                var newDaily = new ObservableCollection<DailyForecast>(data.Daily);
+                DailyItems = newDaily;
+                OnPropertyChanged(nameof(DailyItems));
+
+                TempHigh = data.Daily[0].TempMax;
+                TempLow = data.Daily[0].TempMin;
+                Sunrise = data.Daily[0].Sunrise ?? "—";
+                UpdateWeekSummary(data.Daily);
             }
 
-            // 逐时预报
-            HourlyItems.Clear();
+            // 逐时预报 — 批量替换
             if (data.Hourly != null)
             {
-                foreach (var h in data.Hourly)
-                    HourlyItems.Add(h);
-
-                // 计算降雨提示
+                HourlyItems = new ObservableCollection<HourlyForecast>(data.Hourly);
+                OnPropertyChanged(nameof(HourlyItems));
                 CalcRainInfo(data.Hourly);
             }
 
@@ -390,13 +469,43 @@ namespace WeatherAppRT2._0.ViewModels
 
         private void UpdateDetailCards()
         {
-            DetailCards.Clear();
-            DetailCards.Add(new DetailCard { Title = "体感温度", Value = string.Format("{0}°", (int)FeelsLike), Icon = "🌡" });
-            DetailCards.Add(new DetailCard { Title = "湿度", Value = string.Format("{0}%", Humidity), Icon = "💧" });
-            DetailCards.Add(new DetailCard { Title = "风力", Value = WindInfo, Icon = "💨" });
-            DetailCards.Add(new DetailCard { Title = "气压", Value = string.Format("{0} hPa", Pressure), Icon = "⏱" });
-            DetailCards.Add(new DetailCard { Title = "能见度", Value = string.Format("{0} km", Visibility), Icon = "👁" });
-            DetailCards.Add(new DetailCard { Title = "日出", Value = Sunrise, Icon = "🌅" });
+            var cards = new List<DetailCard>
+            {
+                new DetailCard { Title = "体感温度", Value = string.Format("{0}°", (int)FeelsLike), Icon = "\u2600" },
+                new DetailCard { Title = "湿度", Value = string.Format("{0}%", Humidity), Icon = "\u2662" },
+                new DetailCard { Title = "风力", Value = WindInfo, Icon = "\u263E" },
+                new DetailCard { Title = "气压", Value = string.Format("{0} hPa", Pressure), Icon = "\u2195" },
+                new DetailCard { Title = "能见度", Value = string.Format("{0} km", Visibility), Icon = "\u25C9" },
+                new DetailCard { Title = "日出", Value = Sunrise, Icon = "\u263C" }
+            };
+            DetailCards = new ObservableCollection<DetailCard>(cards);
+            OnPropertyChanged(nameof(DetailCards));
+        }
+
+        private void UpdateWeekSummary(List<DailyForecast> daily)
+        {
+            if (daily == null || daily.Count == 0)
+            {
+                WeekSummary = "本周天气概览";
+                return;
+            }
+
+            double weekHigh = daily.Max(d => d.TempMax);
+            double weekLow = daily.Min(d => d.TempMin);
+            int rainDays = daily.Count(d => d.PrecipitationProbability > 50);
+            var mainWeather = daily.GroupBy(d => d.WeatherDesc)
+                                   .OrderByDescending(g => g.Count())
+                                   .First().Key;
+
+            string summary;
+            if (rainDays > 0)
+                summary = string.Format("未来{0}天 {1}为主，{2}天有雨 | {3}°~{4}°",
+                    daily.Count, mainWeather, rainDays, (int)weekLow, (int)weekHigh);
+            else
+                summary = string.Format("未来{0}天 {1}为主 | {2}°~{3}°",
+                    daily.Count, mainWeather, (int)weekLow, (int)weekHigh);
+
+            WeekSummary = summary;
         }
 
         #endregion
@@ -446,15 +555,20 @@ namespace WeatherAppRT2._0.ViewModels
             }
 
             // 生成 7 天逐日 Mock
+            double mockAllMin = 18, mockAllMax = 31.5, mockAllRange = mockAllMax - mockAllMin;
             for (int i = 0; i < 7; i++)
             {
                 var date = now.Date.AddDays(i);
+                double tMin = 18 + i * 0.3;
+                double tMax = 28 + i * 0.5;
                 data.Daily.Add(new DailyForecast
                 {
                     Date = date,
                     DayOfWeek = GetDayOfWeek(date),
-                    TempMax = 28 + i * 0.5,
-                    TempMin = 18 + i * 0.3,
+                    TempMax = tMax,
+                    TempMin = tMin,
+                    TempBarLeftRatio = (tMin - mockAllMin) / mockAllRange,
+                    TempBarRatio = (tMax - tMin) / mockAllRange,
                     IconDay = "100",
                     IconNight = "100",
                     WeatherDesc = "晴天",
@@ -492,11 +606,16 @@ namespace WeatherAppRT2._0.ViewModels
             return true;
         }
 
-        private void RaisePropertyChanged([CallerMemberName] string propertyName = null)
+        private void OnPropertyChanged([CallerMemberName] string propertyName = null)
         {
             var handler = PropertyChanged;
             if (handler != null)
                 handler(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        private void RaisePropertyChanged([CallerMemberName] string propertyName = null)
+        {
+            OnPropertyChanged(propertyName);
         }
 
         #endregion
@@ -518,7 +637,9 @@ namespace WeatherAppRT2._0.ViewModels
         public RelayCommand(Action action) { _action = action; }
 
         public bool CanExecute(object parameter) { return true; }
+#pragma warning disable CS0067
         public event EventHandler CanExecuteChanged;
+#pragma warning restore CS0067
         public void Execute(object parameter) { _action(); }
     }
 }

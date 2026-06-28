@@ -2,28 +2,29 @@ using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Newtonsoft.Json.Linq;
+using Windows.Data.Json;
 using WeatherAppRT2._0.Models;
 
 namespace WeatherAppRT2._0.ApiClient
 {
     /// <summary>
     /// 使用 Open-Meteo 免费 API（无需 Key）
+    /// 使用 Windows.Data.Json 替代 Newtonsoft.Json，避免 MDIL 编译问题
     /// </summary>
     public class QWeatherClient : IWeatherApiClient
     {
         private const string ForecastUrl = "https://api.open-meteo.com/v1/forecast";
         private const string GeoUrl = "https://geocoding-api.open-meteo.com/v1/search";
 
-        private static readonly HttpClient _httpClient = new HttpClient();
+        private static HttpClient _httpClient = new HttpClient();
 
         public QWeatherClient(string apiKey = null) { }
 
-        #region 辅助解析（兼容 Newtonsoft.Json 6.0.8）
+        #region 辅助解析（Windows.Data.Json）
 
-        private static double D(JToken t) { try { return t != null ? (double)t : 0; } catch { return 0; } }
-        private static int I(JToken t) { try { return t != null ? (int)t : 0; } catch { return 0; } }
-        private static string S(JToken t) { try { return t != null ? (string)t : null; } catch { return null; } }
+        private static double D(IJsonValue v) { try { return v?.GetNumber() ?? 0; } catch { return 0; } }
+        private static int I(IJsonValue v) { try { return (int)(v?.GetNumber() ?? 0); } catch { return 0; } }
+        private static string S(IJsonValue v) { try { return v?.GetString(); } catch { return null; } }
 
         #endregion
 
@@ -39,8 +40,8 @@ namespace WeatherAppRT2._0.ApiClient
                 System.Diagnostics.Debug.WriteLine("[API] cityId 非坐标，通过 geocoding 查询...");
                 var coord = await GeocodeCityAsync(cityName);
                 if (coord == null) throw new Exception("城市未找到: " + cityName);
-                lat = D(coord["latitude"]);
-                lon = D(coord["longitude"]);
+                lat = D(coord.GetNamedValue("latitude"));
+                lon = D(coord.GetNamedValue("longitude"));
             }
 
             return await GetWeatherByCoords(lat, lon, cityName);
@@ -61,21 +62,22 @@ namespace WeatherAppRT2._0.ApiClient
             {
                 string url = string.Format("{0}?name={1}&count=10&language=zh",
                     GeoUrl, Uri.EscapeDataString(keyword));
-                string json = await _httpClient.GetStringAsync(new Uri(url, UriKind.Absolute));
-                var root = JObject.Parse(json);
-                var arr = root["results"] as JArray;
+                string json = await _httpClient.GetStringAsync(url);
+                var root = JsonObject.Parse(json);
+                var arr = root.GetNamedArray("results");
                 if (arr == null) return results;
 
                 foreach (var city in arr)
                 {
+                    var obj = city.GetObject();
                     results.Add(new CitySearchResult
                     {
-                        Id = string.Format("{0},{1}", D(city["latitude"]), D(city["longitude"])),
-                        Name = S(city["name"]),
-                        Adm1 = S(city["admin1"]),
-                        Country = S(city["country"]),
-                        Latitude = D(city["latitude"]),
-                        Longitude = D(city["longitude"])
+                        Id = string.Format("{0},{1}", D(obj.GetNamedValue("latitude")), D(obj.GetNamedValue("longitude"))),
+                        Name = S(obj.GetNamedValue("name")),
+                        Adm1 = S(obj.GetNamedValue("admin1")),
+                        Country = S(obj.GetNamedValue("country")),
+                        Latitude = D(obj.GetNamedValue("latitude")),
+                        Longitude = D(obj.GetNamedValue("longitude"))
                     });
                 }
             }
@@ -101,21 +103,11 @@ namespace WeatherAppRT2._0.ApiClient
                 ForecastUrl, lat.ToString("F4"), lon.ToString("F4"));
 
             System.Diagnostics.Debug.WriteLine("[API] URL: " + url);
-            System.Diagnostics.Debug.WriteLine("[API] Fetching weather with GetStringAsync...");
 
             string json;
             try
             {
-                // 用 Task.WhenAny 做 30 秒超时（WP8.1 HttpClient 可能无限挂起）
-                var fetchTask = _httpClient.GetStringAsync(new Uri(url, UriKind.Absolute));
-                var timeoutTask = Task.Delay(30000);
-                var winner = await Task.WhenAny(fetchTask, timeoutTask);
-                if (winner == timeoutTask)
-                {
-                    System.Diagnostics.Debug.WriteLine("[API] GetStringAsync 超时 (30s)");
-                    throw new TimeoutException("HTTP 请求超时");
-                }
-                json = fetchTask.Result;
+                json = await _httpClient.GetStringAsync(url);
                 System.Diagnostics.Debug.WriteLine("[API] Response received: " + json.Length + " chars");
             }
             catch (Exception ex)
@@ -126,7 +118,7 @@ namespace WeatherAppRT2._0.ApiClient
                 throw;
             }
 
-            var root = JObject.Parse(json);
+            var root = JsonObject.Parse(json);
 
             var data = new WeatherData
             {
@@ -154,43 +146,56 @@ namespace WeatherAppRT2._0.ApiClient
 
         #region 解析
 
-        private CurrentWeather ParseCurrent(JObject root)
+        private CurrentWeather ParseCurrent(JsonObject root)
         {
-            var cur = root["current"];
+            var cur = root.GetNamedObject("current", null);
             if (cur == null) return null;
             return new CurrentWeather
             {
-                Temperature = D(cur["temperature_2m"]),
-                FeelsLike = D(cur["apparent_temperature"]),
-                WeatherIcon = MapWeatherCode(I(cur["weather_code"])),
-                WeatherDesc = GetWeatherDesc(I(cur["weather_code"])),
-                Humidity = I(cur["relative_humidity_2m"]),
-                WindDirection = GetWindDir(D(cur["wind_direction_10m"])),
-                WindSpeed = D(cur["wind_speed_10m"]),
-                WindScale = WindSpeedToScale(D(cur["wind_speed_10m"])),
-                Pressure = (int)D(cur["surface_pressure"]),
-                Visibility = D(cur["visibility"]) / 1000.0,
+                Temperature = D(cur.GetNamedValue("temperature_2m")),
+                FeelsLike = D(cur.GetNamedValue("apparent_temperature")),
+                WeatherIcon = MapWeatherCode(I(cur.GetNamedValue("weather_code"))),
+                WeatherDesc = GetWeatherDesc(I(cur.GetNamedValue("weather_code"))),
+                Humidity = I(cur.GetNamedValue("relative_humidity_2m")),
+                WindDirection = GetWindDir(D(cur.GetNamedValue("wind_direction_10m"))),
+                WindSpeed = D(cur.GetNamedValue("wind_speed_10m")),
+                WindScale = WindSpeedToScale(D(cur.GetNamedValue("wind_speed_10m"))),
+                Pressure = (int)D(cur.GetNamedValue("surface_pressure")),
+                Visibility = D(cur.GetNamedValue("visibility")) / 1000.0,
             };
         }
 
-        private List<HourlyForecast> ParseHourly(JObject root)
+        private List<HourlyForecast> ParseHourly(JsonObject root)
         {
             var list = new List<HourlyForecast>();
-            var hourly = root["hourly"];
+            var hourly = root.GetNamedObject("hourly", null);
             if (hourly == null) return list;
 
-            var times = hourly["time"] as JArray;
-            var temps = hourly["temperature_2m"] as JArray;
-            var codes = hourly["weather_code"] as JArray;
-            var pops = hourly["precipitation_probability"] as JArray;
+            var times = hourly.GetNamedArray("time");
+            var temps = hourly.GetNamedArray("temperature_2m");
+            var codes = hourly.GetNamedArray("weather_code");
+            var pops = hourly.GetNamedArray("precipitation_probability");
+
+            System.Diagnostics.Debug.WriteLine("[API] ParseHourly: pops is null? {0}, count={1}",
+                pops == null, pops?.Count ?? 0);
+            if (pops != null && pops.Count > 0)
+            {
+                int nonZero = 0;
+                for (int k = 0; k < Math.Min(10, pops.Count); k++)
+                    if (I(pops[k]) != 0) nonZero++;
+                System.Diagnostics.Debug.WriteLine("[API] ParseHourly: first 10 pops non-zero count={0}", nonZero);
+            }
 
             if (times == null) return list;
-            int count = Math.Min(24, times.Count);
+
+            var now = DateTime.Now;
+            int count = Math.Min(48, times.Count);
 
             for (int i = 0; i < count; i++)
             {
                 DateTime dt;
                 DateTime.TryParse(S(times[i]), out dt);
+                if (dt < now.Date) continue;
                 list.Add(new HourlyForecast
                 {
                     Time = dt,
@@ -202,23 +207,26 @@ namespace WeatherAppRT2._0.ApiClient
             return list;
         }
 
-        private List<DailyForecast> ParseDaily(JObject root)
+        private List<DailyForecast> ParseDaily(JsonObject root)
         {
             var list = new List<DailyForecast>();
-            var daily = root["daily"];
+            var daily = root.GetNamedObject("daily", null);
             if (daily == null) return list;
 
-            var dates = daily["time"] as JArray;
-            var maxT = daily["temperature_2m_max"] as JArray;
-            var minT = daily["temperature_2m_min"] as JArray;
-            var codes = daily["weather_code"] as JArray;
-            var sunrises = daily["sunrise"] as JArray;
-            var sunsets = daily["sunset"] as JArray;
-            var uvMax = daily["uv_index_max"] as JArray;
-            var popMax = daily["precipitation_probability_max"] as JArray;
-            var windMax = daily["wind_speed_10m_max"] as JArray;
-            var windDir = daily["wind_direction_10m_dominant"] as JArray;
-            var humMax = daily["relative_humidity_2m_max"] as JArray;
+            var dates = daily.GetNamedArray("time");
+            var maxT = daily.GetNamedArray("temperature_2m_max");
+            var minT = daily.GetNamedArray("temperature_2m_min");
+            var codes = daily.GetNamedArray("weather_code");
+            var sunrises = daily.GetNamedArray("sunrise");
+            var sunsets = daily.GetNamedArray("sunset");
+            System.Diagnostics.Debug.WriteLine("[API] ParseDaily: sunrises count={0}, first='{1}'",
+                sunrises?.Count ?? 0,
+                sunrises != null && sunrises.Count > 0 ? S(sunrises[0]) ?? "(null)" : "(empty)");
+            var uvMax = daily.GetNamedArray("uv_index_max");
+            var popMax = daily.GetNamedArray("precipitation_probability_max");
+            var windMax = daily.GetNamedArray("wind_speed_10m_max");
+            var windDir = daily.GetNamedArray("wind_direction_10m_dominant");
+            var humMax = daily.GetNamedArray("relative_humidity_2m_max");
 
             if (dates == null) return list;
 
@@ -262,16 +270,16 @@ namespace WeatherAppRT2._0.ApiClient
                 && double.TryParse(parts[1], out lon);
         }
 
-        private async Task<JObject> GeocodeCityAsync(string cityName)
+        private async Task<JsonObject> GeocodeCityAsync(string cityName)
         {
             try
             {
                 string url = string.Format("{0}?name={1}&count=1&language=zh", GeoUrl, Uri.EscapeDataString(cityName));
-                string json = await _httpClient.GetStringAsync(new Uri(url, UriKind.Absolute));
-                var root = JObject.Parse(json);
-                var first = (root["results"] as JArray);
-                if (first == null || first.Count == 0) return null;
-                return first[0] as JObject;
+                string json = await _httpClient.GetStringAsync(url);
+                var root = JsonObject.Parse(json);
+                var results = root.GetNamedArray("results");
+                if (results == null || results.Count == 0) return null;
+                return results[0].GetObject();
             }
             catch { return null; }
         }
@@ -283,15 +291,15 @@ namespace WeatherAppRT2._0.ApiClient
                 string url = string.Format(
                     "https://nominatim.openstreetmap.org/reverse?lat={0}&lon={1}&format=json&accept-language=zh",
                     lat, lon);
-                string json = await _httpClient.GetStringAsync(new Uri(url, UriKind.Absolute));
-                var root = JObject.Parse(json);
-                var addr = root["address"] as JObject;
+                string json = await _httpClient.GetStringAsync(url);
+                var root = JsonObject.Parse(json);
+                var addr = root.GetNamedObject("address", null);
                 if (addr != null)
                 {
-                    string city = S(addr["city"]) ?? S(addr["town"]) ?? S(addr["county"]);
+                    string city = S(addr.GetNamedValue("city")) ?? S(addr.GetNamedValue("town")) ?? S(addr.GetNamedValue("county"));
                     if (!string.IsNullOrEmpty(city)) return city;
                 }
-                string displayName = S(root["display_name"]);
+                string displayName = S(root.GetNamedValue("display_name"));
                 if (displayName != null)
                 {
                     string[] parts = displayName.Split(',');
@@ -304,10 +312,19 @@ namespace WeatherAppRT2._0.ApiClient
 
         private static string ShortenTime(string isoDateTime)
         {
-            if (string.IsNullOrEmpty(isoDateTime)) return "";
+            if (string.IsNullOrEmpty(isoDateTime))
+            {
+                System.Diagnostics.Debug.WriteLine("[API] ShortenTime: input is null or empty");
+                return "";
+            }
             int tIdx = isoDateTime.IndexOf('T');
             if (tIdx > 0 && isoDateTime.Length > tIdx + 5)
-                return isoDateTime.Substring(tIdx + 1, 5);
+            {
+                string result = isoDateTime.Substring(tIdx + 1, 5);
+                System.Diagnostics.Debug.WriteLine("[API] ShortenTime: '{0}' -> '{1}'", isoDateTime, result);
+                return result;
+            }
+            System.Diagnostics.Debug.WriteLine("[API] ShortenTime: no T found or too short, returning raw: '{0}'", isoDateTime);
             return isoDateTime;
         }
 
@@ -320,43 +337,47 @@ namespace WeatherAppRT2._0.ApiClient
             return days[(int)date.DayOfWeek];
         }
 
+        private static readonly Dictionary<int, string> WeatherCodeMap = new Dictionary<int, string>
+        {
+            {0, "100"}, {1, "102"}, {2, "103"}, {3, "104"},
+            {45, "501"}, {48, "501"},
+            {51, "309"}, {53, "309"}, {55, "309"},
+            {56, "313"}, {57, "313"},
+            {61, "305"}, {63, "306"}, {65, "307"},
+            {66, "313"}, {67, "313"},
+            {71, "400"}, {73, "401"}, {75, "402"}, {77, "400"},
+            {80, "300"}, {81, "300"}, {82, "300"},
+            {85, "407"}, {86, "407"},
+            {95, "302"}, {96, "304"}, {99, "304"},
+        };
+
+        private static readonly Dictionary<int, string> WeatherDescMap = new Dictionary<int, string>
+        {
+            {0, "晴天"}, {1, "大部晴朗"}, {2, "局部多云"}, {3, "多云"},
+            {45, "雾"}, {48, "雾"},
+            {51, "毛毛雨"}, {53, "毛毛雨"}, {55, "毛毛雨"},
+            {56, "冻毛毛雨"}, {57, "冻毛毛雨"},
+            {61, "小雨"}, {63, "中雨"}, {65, "大雨"},
+            {66, "冻雨"}, {67, "冻雨"},
+            {71, "小雪"}, {73, "中雪"}, {75, "大雪"}, {77, "雪粒"},
+            {80, "阵雨"}, {81, "阵雨"}, {82, "阵雨"},
+            {85, "阵雪"}, {86, "阵雪"},
+            {95, "雷暴"}, {96, "雷暴伴冰雹"}, {99, "雷暴伴冰雹"},
+        };
+
         private static string MapWeatherCode(int code)
         {
-            if (code == 0) return "100";
-            if (code <= 3) return "101";
-            if (code <= 48) return "104";
-            if (code <= 55) return "300";
-            if (code <= 57) return "301";
-            if (code <= 65) return "305";
-            if (code <= 67) return "306";
-            if (code <= 77) return "404";
-            if (code <= 82) return "309";
-            if (code <= 86) return "407";
-            if (code <= 99) return "501";
+            string result;
+            if (WeatherCodeMap.TryGetValue(code, out result))
+                return result;
             return "999";
         }
 
         private static string GetWeatherDesc(int code)
         {
-            if (code == 0) return "晴天";
-            if (code == 1) return "大部晴朗";
-            if (code == 2) return "局部多云";
-            if (code == 3) return "多云";
-            if (code <= 48) return "雾";
-            if (code <= 55) return "毛毛雨";
-            if (code <= 57) return "冻毛毛雨";
-            if (code <= 61) return "小雨";
-            if (code <= 63) return "中雨";
-            if (code <= 65) return "大雨";
-            if (code <= 67) return "冻雨";
-            if (code <= 71) return "小雪";
-            if (code <= 73) return "中雪";
-            if (code <= 75) return "大雪";
-            if (code == 77) return "雪粒";
-            if (code <= 82) return "阵雨";
-            if (code <= 86) return "阵雪";
-            if (code == 95) return "雷暴";
-            if (code <= 99) return "雷暴伴冰雹";
+            string result;
+            if (WeatherDescMap.TryGetValue(code, out result))
+                return result;
             return "未知";
         }
 

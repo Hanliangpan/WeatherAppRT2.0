@@ -172,4 +172,24 @@ namespace WeatherAppRT2._0.Converters
             throw new NotImplementedException();
         }
     }
+
+    /// <summary>double 比例 (0~1) → GridLength.Star</summary>
+    public class RatioConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, string language)
+        {
+            if (value is double)
+            {
+                double ratio = (double)value;
+                if (ratio <= 0) ratio = 0.01;
+                return new Windows.UI.Xaml.GridLength(ratio, Windows.UI.Xaml.GridUnitType.Star);
+            }
+            return new Windows.UI.Xaml.GridLength(0.01, Windows.UI.Xaml.GridUnitType.Star);
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, string language)
+        {
+            throw new NotImplementedException();
+        }
+    }
 }

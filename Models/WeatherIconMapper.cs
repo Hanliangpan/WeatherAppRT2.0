@@ -3,8 +3,11 @@ using System.Collections.Generic;
 namespace WeatherAppRT2._0.Models
 {
     /// <summary>
-    /// QWeather 图标代码 → 通用名称映射
-    /// 图标代码参考：https://dev.qweather.com/docs/resource/icons/
+    /// 天气图标映射器
+    /// WP8.1 Segoe UI 不支持彩色 Emoji，使用 Segoe UI Symbol 单色字符
+    /// 字体: FontFamily="Segoe UI Symbol"
+    /// 
+    /// 注意: 图标代码来自 QWeatherClient.MapWeatherCode() 转换后的 QWeather 风格代码
     /// </summary>
     public static class WeatherIconMapper
     {
@@ -57,7 +60,6 @@ namespace WeatherAppRT2._0.Models
             { "999", "unknown" },        // 未知
         };
 
-        /// <summary>获取图标资源文件名（不含后缀）</summary>
         public static string GetIconName(string qweatherCode)
         {
             string name;
@@ -66,41 +68,66 @@ namespace WeatherAppRT2._0.Models
             return "unknown";
         }
 
-        /// <summary>获取天气 Emoji（用于 Tile 显示）</summary>
+        /// <summary>
+        /// 获取 Segoe UI Symbol 单色天气图标字符
+        /// WP8.1 不支持彩色 Emoji，使用 Unicode 符号字符
+        /// </summary>
         public static string GetEmoji(string qweatherCode)
         {
             var name = GetIconName(qweatherCode);
             switch (name)
             {
+                // 晴/夜
                 case "sunny":
-                case "clear_night":     return "☀";
+                case "clear_night":     return "\u2600";  // ☀
+
+                // 多云/少云
                 case "cloudy":
                 case "cloudy_night":
                 case "partly_cloudy":
-                case "partly_cloudy_night": return "⛅";
-                case "overcast":        return "☁";
+                case "partly_cloudy_night": return "\u26C5"; // ⛅
+
+                // 阴
+                case "overcast":        return "\u2601";  // ☁
+
+                // 小雨/中雨
                 case "light_rain":
                 case "moderate_rain":
-                case "rain":            return "🌧";
+                case "rain":            return "\u2614";  // ☔
+
+                // 大雨/暴雨
                 case "heavy_rain":
                 case "storm_rain":
-                case "freezing_rain":   return "⛈";
+                case "freezing_rain":   return "\u2602";  // ☂
+
+                // 雷暴
                 case "thunderstorm":
-                case "hail":            return "⛈";
+                case "hail":            return "\u26A1";  // ⚡
+
+                // 雪
                 case "light_snow":
                 case "moderate_snow":
                 case "heavy_snow":
                 case "snow":
-                case "blizzard":        return "❄";
-                case "sleet":           return "🌨";
+                case "blizzard":        return "\u2744";  // ❄
+
+                // 雨夹雪
+                case "sleet":           return "\u2603";  // ☃
+
+                // 雾/薄雾/霾 — 使用三条水平线符号
                 case "mist":
                 case "fog":
-                case "haze":            return "🌫";
+                case "haze":            return "\u2261";  // ≡ (三条横线，比‖更明显)
+
+                // 沙尘暴
                 case "sandstorm":
-                case "duststorm":       return "💨";
-                case "hot":             return "🔥";
-                case "cold":            return "🥶";
-                default:                return "🌡";
+                case "duststorm":       return "\u2248";  // ≈
+
+                // 极端温度
+                case "hot":             return "\u2668";  // ♨
+                case "cold":            return "\u2731";  // ✱
+
+                default:                return "\u00B0";  // °
             }
         }
     }
